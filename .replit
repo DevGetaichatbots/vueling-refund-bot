@@ -3,6 +3,7 @@ modules = ["python-3.11"]
 
 [nix]
 channel = "stable-25_05"
+packages = ["gitFull", "playwright-driver", "chromium", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXrandr", "xorg.libXext", "xorg.libXfixes", "xorg.libXrender", "xorg.libxcb", "xorg.libXi", "xorg.libXtst", "xorg.libXScrnSaver", "nss", "nspr", "alsa-lib", "cups", "at-spi2-atk", "pango", "mesa", "dbus", "expat", "libdrm", "gtk3", "glib"]
 
 [unitTest]
 language = "python3"
