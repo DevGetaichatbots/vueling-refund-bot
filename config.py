@@ -3,7 +3,7 @@ import os
 VUELING_REFUND_URL = "https://www.vueling.com/en/we-are-vueling/contact/management?helpCenterFlow=RefundJustifiedReasons"
 
 BOOKING_CODE = os.environ.get("BOOKING_CODE", "EHZRMC")
-EMAIL = os.environ.get("BOOKING_EMAIL", "example@email.com")
+EMAIL = os.environ.get("BOOKING_EMAIL", "jimaesmith9871@gmail.com")
 REASON = os.environ.get("REFUND_REASON", "ILL OR HAVING SURGERY")
 DOCUMENT_PATH = os.environ.get("DOCUMENT_PATH", "medical_certificate.pdf")
 
