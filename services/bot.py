@@ -44,7 +44,7 @@ class VuelingRefundBot:
         self.contact_email = contact_email or ""
         self.phone_country = phone_country or "+92"
         self.phone_number = phone_number or ""
-        self.comment = comment or ""
+        self.comment = comment if comment else ""
         self.document_paths = document_paths or []
         self.headless = headless if headless is not None else config.HEADLESS
         self.job_id = job_id or "manual"
@@ -367,12 +367,14 @@ class VuelingRefundBot:
         ctx = await self._find_chatbot_frame()
         await self._random_delay()
 
-        reason_variants = [
-            self.reason,
-            "ILL OR HAVING SURGERY",
-            "Ill or having surgery",
-            "ILL", "ill",
-        ]
+        normalized_reason = self.reason.strip().upper()
+        reason_map = {
+            "ILL OR HAVING SURGERY": ["ILL OR HAVING SURGERY", "Ill or having surgery", "ILL"],
+            "PREGNANT": ["PREGNANT", "Pregnant", "pregnant"],
+        }
+        reason_variants = reason_map.get(normalized_reason, [])
+        reason_variants = [self.reason] + [v for v in reason_variants if v != self.reason]
+
         for text in reason_variants:
             try:
                 await self._click_text(ctx, text)
@@ -466,27 +468,49 @@ class VuelingRefundBot:
         await self._random_delay()
         await self._wait_for_new_content(ctx)
 
+        country_selected = False
+        prefix = self.phone_country.lstrip("+")
+
         try:
             country_select = ctx.locator("select:visible:not([disabled])").first
             await country_select.wait_for(state="visible", timeout=5000)
             options = await country_select.locator("option").all()
             for option in options:
-                text = await option.text_content()
-                value = await option.get_attribute("value") or ""
-                if self.phone_country in text or self.phone_country in value:
-                    await country_select.select_option(value=value)
-                    print(f"  [select] Country code: {self.phone_country}")
+                opt_text = await option.text_content() or ""
+                opt_val = await option.get_attribute("value") or ""
+                if f"(+{prefix})" in opt_text or f"+{prefix}" in opt_val or opt_val == prefix or opt_val == f"+{prefix}":
+                    await country_select.select_option(value=opt_val)
+                    print(f"  [select] Country code: {opt_text.strip()} (value={opt_val})")
+                    country_selected = True
                     break
+            if not country_selected:
+                for option in options:
+                    opt_text = await option.text_content() or ""
+                    opt_val = await option.get_attribute("value") or ""
+                    if prefix in opt_text or prefix in opt_val:
+                        await country_select.select_option(value=opt_val)
+                        print(f"  [select] Country code (fuzzy): {opt_text.strip()}")
+                        country_selected = True
+                        break
         except Exception as e:
-            print(f"  [info] Country code select not found, trying dropdown click: {e}")
+            print(f"  [info] Select element not found: {e}")
+
+        if not country_selected:
             try:
-                dropdown = ctx.locator('[class*="country"], [class*="prefix"], [class*="dropdown"]').first
-                await dropdown.wait_for(state="visible", timeout=3000)
-                await dropdown.click()
+                dropdown_trigger = ctx.locator('[class*="country"]:visible, [class*="prefix"]:visible, [class*="dropdown"]:visible, [role="listbox"]:visible').first
+                await dropdown_trigger.wait_for(state="visible", timeout=3000)
+                await dropdown_trigger.click()
                 await self._random_delay(0.3, 0.8)
-                option = ctx.get_by_text(self.phone_country, exact=False).first
-                await option.click()
-                print(f"  [click] Country code via dropdown: {self.phone_country}")
+                for search_text in [f"(+{prefix})", f"+{prefix}", self.phone_country]:
+                    try:
+                        opt = ctx.get_by_text(search_text, exact=False).first
+                        await opt.wait_for(state="visible", timeout=2000)
+                        await opt.click()
+                        print(f"  [click] Country code via dropdown: {search_text}")
+                        country_selected = True
+                        break
+                    except Exception:
+                        continue
             except Exception:
                 print(f"  [info] Country code selection skipped entirely")
 
@@ -551,7 +575,7 @@ class VuelingRefundBot:
             except Exception:
                 print("  [info] No comment textarea found, skipping comment text")
         else:
-            print("  [info] No comment provided, leaving blank")
+            print("  [info] No comment provided, leaving textarea empty")
 
         await self._screenshot("comment_filled")
         await self._random_delay()
@@ -583,18 +607,47 @@ class VuelingRefundBot:
         try:
             file_input = ctx.locator('input[type="file"]').first
             await file_input.wait_for(state="attached", timeout=10000)
-            await file_input.set_input_files(self.document_paths)
-            print(f"  [upload] {len(self.document_paths)} file(s) uploaded")
+
+            try:
+                async with self.page.expect_file_chooser(timeout=10000) as fc_info:
+                    select_btn_selectors = [
+                        'button:has-text("Select them")',
+                        'button:has-text("Select")',
+                        'button:has-text("Browse")',
+                        'button:has-text("Upload")',
+                        'button:has-text("Attach")',
+                        '[class*="upload"] button',
+                        '[class*="attach"] button',
+                    ]
+                    clicked = False
+                    for sel in select_btn_selectors:
+                        try:
+                            btn = ctx.locator(sel).first
+                            if await btn.is_visible(timeout=2000):
+                                await btn.click()
+                                print(f"  [click] File select button: {sel}")
+                                clicked = True
+                                break
+                        except Exception:
+                            continue
+                    if not clicked:
+                        await file_input.dispatch_event("click")
+                        print("  [click] Triggered file input click directly")
+
+                file_chooser = await fc_info.value
+                await file_chooser.set_files(self.document_paths)
+                print(f"  [upload] {len(self.document_paths)} file(s) uploaded via file chooser")
+            except Exception as e_chooser:
+                print(f"  [info] File chooser method failed ({e_chooser}), trying direct set_input_files")
+                await file_input.set_input_files(self.document_paths)
+                print(f"  [upload] {len(self.document_paths)} file(s) uploaded via direct input")
+
         except Exception as e:
-            print(f"  [warn] Direct file input failed: {e}")
+            print(f"  [warn] Primary upload failed: {e}")
             try:
                 for doc_path in self.document_paths:
                     async with self.page.expect_file_chooser(timeout=10000) as fc_info:
-                        upload_selectors = [
-                            'button:has-text("Upload")', 'button:has-text("Attach")',
-                            'button:has-text("Browse")', '[class*="upload"]', '[class*="attach"]',
-                        ]
-                        for sel in upload_selectors:
+                        for sel in ['button:has-text("Select them")', 'button:has-text("Select")', 'button:has-text("Upload")', '[class*="upload"]']:
                             try:
                                 btn = ctx.locator(sel).first
                                 if await btn.is_visible(timeout=2000):
