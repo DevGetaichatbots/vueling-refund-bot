@@ -792,19 +792,42 @@ class VuelingRefundBot:
             raise Exception("Could not find phone number input field")
 
         await self._screenshot("phone_filled")
-        await self._random_delay()
+        await self._random_delay(0.3, 0.5)
 
-        for text in ["SEND", "Send"]:
+        send_clicked = False
+        send_selectors = ['button:has-text("SEND")', 'button:has-text("Send")']
+        for sel in send_selectors:
             try:
-                await self._click_text(ctx, text)
-                print(f"  [click] Phone SEND clicked")
-                break
+                btns = ctx.locator(sel)
+                count = await btns.count()
+                for i in range(count - 1, -1, -1):
+                    btn = btns.nth(i)
+                    if await btn.is_visible(timeout=2000):
+                        await btn.click()
+                        print(f"  [click] Phone SEND clicked via {sel} (index {i})")
+                        send_clicked = True
+                        break
+                if send_clicked:
+                    break
             except Exception:
                 continue
 
+        if not send_clicked:
+            for sel in send_selectors:
+                try:
+                    await ctx.locator(sel).last.click(force=True)
+                    print(f"  [click] Phone SEND force-clicked via {sel}")
+                    send_clicked = True
+                    break
+                except Exception:
+                    continue
+
+        if not send_clicked:
+            print("  [warn] Phone SEND not found")
+
         print("  [wait] Waiting for comment/submit prompt...")
         comment_prompt_found = False
-        for attempt in range(30):
+        for attempt in range(20):
             await asyncio.sleep(1)
             try:
                 page_text = await ctx.locator("body").text_content() or ""
@@ -815,8 +838,8 @@ class VuelingRefundBot:
             except Exception:
                 pass
         if not comment_prompt_found:
-            print("  [wait] Comment prompt not detected after 30s, proceeding anyway")
-        await asyncio.sleep(1)
+            print("  [wait] Comment prompt not detected after 20s, proceeding anyway")
+        await asyncio.sleep(0.5)
         await self._screenshot("phone_sent")
 
     # ── Step 11: Optional comment → SUBMIT QUERY ──
