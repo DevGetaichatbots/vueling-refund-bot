@@ -949,95 +949,124 @@ class VuelingRefundBot:
         await self._random_delay(1, 2)
         await self._screenshot("comment_submitted")
 
-    # ── Step 12: Upload documents ──
+    # ── Step 12: Upload documents (one at a time) ──
+    async def _upload_single_file(self, ctx, doc_path):
+        file_input = ctx.locator('input[type="file"]').first
+        await file_input.wait_for(state="attached", timeout=15000)
+
+        try:
+            async with self.page.expect_file_chooser(timeout=10000) as fc_info:
+                select_btn_selectors = [
+                    'button:has-text("Select them")',
+                    'button:has-text("Select")',
+                    'button:has-text("Browse")',
+                    'button:has-text("Upload")',
+                    'button:has-text("Attach")',
+                ]
+                clicked = False
+                for sel in select_btn_selectors:
+                    try:
+                        btn = ctx.locator(sel).first
+                        if await btn.is_visible(timeout=2000):
+                            await btn.click()
+                            print(f"    [click] File select: {sel}")
+                            clicked = True
+                            break
+                    except Exception:
+                        continue
+                if not clicked:
+                    await file_input.dispatch_event("click")
+                    print("    [click] Triggered file input directly")
+
+            file_chooser = await fc_info.value
+            await file_chooser.set_files(doc_path)
+            return True
+        except Exception as e:
+            print(f"    [info] File chooser failed ({e}), trying direct input")
+            try:
+                await file_input.set_input_files(doc_path)
+                return True
+            except Exception as e2:
+                print(f"    [error] Direct input also failed: {e2}")
+                return False
+
     async def step_upload_documents(self):
         print(f"[Step 12] Uploading {len(self.document_paths)} document(s)...")
         ctx = await self._find_chatbot_frame()
-        await self._random_delay()
-        await self._wait_for_new_content(ctx)
+        await self._random_delay(0.3, 0.5)
 
         if not self.document_paths:
             print("  [info] No documents to upload")
             await self._screenshot("no_documents")
             return
 
-        try:
-            file_input = ctx.locator('input[type="file"]').first
-            await file_input.wait_for(state="attached", timeout=10000)
+        total_files = len(self.document_paths)
 
-            try:
-                async with self.page.expect_file_chooser(timeout=10000) as fc_info:
-                    select_btn_selectors = [
-                        'button:has-text("Select them")',
-                        'button:has-text("Select")',
-                        'button:has-text("Browse")',
-                        'button:has-text("Upload")',
-                        'button:has-text("Attach")',
-                        '[class*="upload"] button',
-                        '[class*="attach"] button',
-                    ]
-                    clicked = False
-                    for sel in select_btn_selectors:
-                        try:
-                            btn = ctx.locator(sel).first
-                            if await btn.is_visible(timeout=2000):
-                                await btn.click()
-                                print(f"  [click] File select button: {sel}")
-                                clicked = True
-                                break
-                        except Exception:
-                            continue
-                    if not clicked:
-                        await file_input.dispatch_event("click")
-                        print("  [click] Triggered file input click directly")
+        for file_idx, doc_path in enumerate(self.document_paths):
+            file_num = file_idx + 1
+            is_last_file = (file_num == total_files)
+            print(f"  [file {file_num}/{total_files}] Uploading: {doc_path}")
 
-                file_chooser = await fc_info.value
-                await file_chooser.set_files(self.document_paths)
-                print(f"  [upload] {len(self.document_paths)} file(s) uploaded via file chooser")
-            except Exception as e_chooser:
-                print(f"  [info] File chooser method failed ({e_chooser}), trying direct set_input_files")
-                await file_input.set_input_files(self.document_paths)
-                print(f"  [upload] {len(self.document_paths)} file(s) uploaded via direct input")
-
-        except Exception as e:
-            print(f"  [warn] Primary upload failed: {e}")
-            try:
-                for doc_path in self.document_paths:
-                    async with self.page.expect_file_chooser(timeout=10000) as fc_info:
-                        for sel in ['button:has-text("Select them")', 'button:has-text("Select")', 'button:has-text("Upload")', '[class*="upload"]']:
-                            try:
-                                btn = ctx.locator(sel).first
-                                if await btn.is_visible(timeout=2000):
-                                    await btn.click()
-                                    break
-                            except Exception:
-                                continue
-                    file_chooser = await fc_info.value
-                    await file_chooser.set_files(doc_path)
-                    print(f"  [upload] File uploaded via chooser: {doc_path}")
-                    await self._random_delay(0.5, 1)
-            except Exception as e2:
-                raise Exception(f"File upload failed: {e2}")
-
-        await self._random_delay(2, 3)
-        await self._screenshot("documents_uploaded")
-        await self._wait_for_new_content(ctx)
-        await self._random_delay()
-
-        for confirm_text in ["Yes, continue", "YES, CONTINUE", "Yes", "Continue"]:
-            try:
-                confirm_btn = ctx.locator(f'button:has-text("{confirm_text}")').first
-                await confirm_btn.wait_for(state="visible", timeout=5000)
-                await confirm_btn.click()
-                print(f"  [click] Document confirmation: '{confirm_text}'")
-                await self._random_delay(1, 2)
-                await self._screenshot("documents_confirmed")
-                break
-            except Exception:
+            uploaded = await self._upload_single_file(ctx, doc_path)
+            if not uploaded:
+                print(f"  [error] Failed to upload file {file_num}, skipping")
                 continue
 
-        await self._wait_for_new_content(ctx)
-        await self._random_delay()
+            print(f"  [file {file_num}/{total_files}] Upload complete")
+            await self._screenshot(f"file_{file_num}_uploaded")
+
+            for attempt in range(15):
+                await asyncio.sleep(1)
+                try:
+                    yes_btn = ctx.locator('button:has-text("Yes, continue"), button:has-text("YES")').first
+                    if await yes_btn.is_visible(timeout=1000):
+                        print(f"  [wait] Confirmation buttons appeared")
+                        break
+                except Exception:
+                    pass
+            else:
+                print(f"  [warn] Confirmation buttons not found after 15s")
+
+            await self._random_delay(0.3, 0.5)
+
+            if is_last_file:
+                for txt in ["Yes, continue", "YES, CONTINUE", "Yes", "Continue"]:
+                    try:
+                        btn = ctx.locator(f'button:has-text("{txt}")').first
+                        if await btn.is_visible(timeout=2000):
+                            await btn.click()
+                            print(f"  [click] Last file - clicked '{txt}'")
+                            break
+                    except Exception:
+                        continue
+            else:
+                add_more_clicked = False
+                for txt in ["No, add more documents", "No, add more", "NO, ADD MORE"]:
+                    try:
+                        btn = ctx.locator(f'button:has-text("{txt}")').first
+                        if await btn.is_visible(timeout=2000):
+                            await btn.click()
+                            print(f"  [click] More files to go - clicked '{txt}'")
+                            add_more_clicked = True
+                            break
+                    except Exception:
+                        continue
+
+                if not add_more_clicked:
+                    print("  [warn] 'No, add more documents' button not found")
+
+                for attempt in range(10):
+                    await asyncio.sleep(1)
+                    try:
+                        fi = ctx.locator('input[type="file"]').first
+                        await fi.wait_for(state="attached", timeout=1000)
+                        print(f"  [wait] Ready for next file")
+                        break
+                    except Exception:
+                        pass
+
+        await self._screenshot("documents_uploaded")
+        await self._random_delay(1, 2)
 
     # ── Step 13: Extract case number from confirmation ──
     async def step_get_confirmation(self):
