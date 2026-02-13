@@ -497,51 +497,123 @@ class VuelingRefundBot:
             print("  [wait] Name form not found, waiting for chatbot...")
             await self._wait_for_new_content(ctx, min_wait=2, max_wait=8, expect_selector="input:visible")
 
-        try:
-            await self._fill_input(ctx, "First name", self.first_name)
-        except Exception:
+        first_filled = False
+        for label in ["First name", "first"]:
             try:
-                await self._fill_input(ctx, "first", self.first_name)
+                inp = ctx.get_by_label(label, exact=False).first
+                await inp.wait_for(state="visible", timeout=5000)
+                await inp.click()
+                await inp.fill("")
+                await inp.type(self.first_name, delay=50)
+                print(f"  [type] '{label}' = '{self.first_name}'")
+                first_filled = True
+                break
+            except Exception:
+                continue
+        if not first_filled:
+            try:
+                inp = ctx.locator('input[placeholder*="first" i]:visible, input[placeholder*="name" i]:visible').first
+                await inp.click()
+                await inp.fill("")
+                await inp.type(self.first_name, delay=50)
+                print(f"  [type] first input = '{self.first_name}'")
+                first_filled = True
             except Exception:
                 inputs = ctx.locator("input:visible")
-                await inputs.first.fill(self.first_name)
-                print(f"  [fill] first input = '{self.first_name}'")
+                inp = inputs.first
+                await inp.click()
+                await inp.fill("")
+                await inp.type(self.first_name, delay=50)
+                print(f"  [type] first visible input = '{self.first_name}'")
 
-        await self._random_delay(0.3, 0.8)
+        await self._random_delay(0.3, 0.5)
 
-        try:
-            await self._fill_input(ctx, "Surname", self.surname)
-        except Exception:
+        surname_filled = False
+        for label in ["Surname", "surname", "last"]:
             try:
-                await self._fill_input(ctx, "surname", self.surname)
+                inp = ctx.get_by_label(label, exact=False).first
+                await inp.wait_for(state="visible", timeout=5000)
+                await inp.click()
+                await inp.fill("")
+                await inp.type(self.surname, delay=50)
+                print(f"  [type] '{label}' = '{self.surname}'")
+                surname_filled = True
+                break
             except Exception:
+                continue
+        if not surname_filled:
+            try:
                 inputs = ctx.locator("input:visible")
                 count = await inputs.count()
                 if count >= 2:
-                    await inputs.nth(1).fill(self.surname)
-                    print(f"  [fill] second input = '{self.surname}'")
+                    inp = inputs.nth(1)
+                    await inp.click()
+                    await inp.fill("")
+                    await inp.type(self.surname, delay=50)
+                    print(f"  [type] second input = '{self.surname}'")
+            except Exception:
+                pass
 
         await self._screenshot("name_filled")
-        await self._random_delay(0.5, 1)
+        await self._random_delay(0.3, 0.5)
+
+        before_text = ""
+        try:
+            before_text = await ctx.locator("body").text_content() or ""
+        except Exception:
+            pass
 
         send_clicked = False
-        for text in ["SEND", "Send"]:
+        send_selectors = [
+            'button:has-text("SEND")',
+            'button:has-text("Send")',
+            'button:has-text("send")',
+            '[type="submit"]:visible',
+            'div:has-text("SEND"):visible',
+            'span:has-text("SEND"):visible',
+        ]
+        for sel in send_selectors:
             try:
-                await self._click_text(ctx, text)
-                send_clicked = True
-                print(f"  [click] SEND button clicked")
-                break
+                btns = ctx.locator(sel)
+                count = await btns.count()
+                for i in range(count - 1, -1, -1):
+                    btn = btns.nth(i)
+                    if await btn.is_visible(timeout=2000):
+                        await btn.click()
+                        print(f"  [click] SEND clicked via {sel} (index {i})")
+                        send_clicked = True
+                        break
+                if send_clicked:
+                    break
             except Exception:
                 continue
 
         if not send_clicked:
+            for sel in send_selectors[:3]:
+                try:
+                    btn = ctx.locator(sel).last
+                    await btn.click(force=True)
+                    print(f"  [click] SEND force-clicked via {sel}")
+                    send_clicked = True
+                    break
+                except Exception:
+                    continue
+
+        if not send_clicked:
+            print("  [warn] SEND button not found, trying Enter key on surname input")
             try:
-                send_btn = ctx.locator('button:has-text("SEND"), button:has-text("Send")').first
-                await send_btn.wait_for(state="visible", timeout=5000)
-                await send_btn.click()
-                print(f"  [click] SEND button clicked (fallback)")
+                surname_input = ctx.get_by_label("Surname", exact=False).first
+                await surname_input.press("Enter")
+                print("  [click] Pressed Enter on surname input")
+                send_clicked = True
             except Exception:
-                print("  [warn] Could not find SEND button for name")
+                try:
+                    last_input = ctx.locator("input:visible").last
+                    await last_input.press("Enter")
+                    print("  [click] Pressed Enter on last input")
+                    send_clicked = True
+                except Exception:
+                    print("  [error] Could not submit name form at all")
 
         print("  [wait] Waiting for chatbot to ask for email...")
         email_prompt_found = False
@@ -550,14 +622,15 @@ class VuelingRefundBot:
             try:
                 page_text = await ctx.locator("body").text_content() or ""
                 if "email" in page_text.lower() and "contact" in page_text.lower():
-                    print("  [wait] Email prompt detected in chatbot response")
-                    email_prompt_found = True
-                    break
+                    if page_text != before_text:
+                        print("  [wait] Email prompt detected in chatbot response")
+                        email_prompt_found = True
+                        break
             except Exception:
                 pass
         if not email_prompt_found:
             print("  [wait] Email prompt not detected after 30s, proceeding anyway")
-            await asyncio.sleep(3)
+            await asyncio.sleep(2)
         else:
             await asyncio.sleep(1)
 
