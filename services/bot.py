@@ -823,40 +823,84 @@ class VuelingRefundBot:
     async def step_submit_comment(self):
         print("[Step 11] Submitting comment...")
         ctx = await self._find_chatbot_frame()
-        await self._random_delay()
+        await self._random_delay(0.3, 0.5)
 
-        try:
-            submit_or_textarea = ctx.locator('button:has-text("SUBMIT"), textarea:visible').first
-            await submit_or_textarea.wait_for(state="visible", timeout=15000)
-            print("  [wait] Comment/submit form is ready")
-        except Exception:
-            print("  [wait] Comment form not found, waiting for chatbot...")
-            await self._wait_for_new_content(ctx, min_wait=2, max_wait=8)
+        submit_btn = None
+        for attempt in range(15):
+            try:
+                btn = ctx.locator('button:has-text("SUBMIT QUERY"), button:has-text("SUBMIT"), button:has-text("Submit")').first
+                if await btn.is_visible(timeout=1000):
+                    submit_btn = btn
+                    print("  [wait] SUBMIT QUERY button found")
+                    break
+            except Exception:
+                pass
+            await asyncio.sleep(1)
+
+        if not submit_btn:
+            print("  [warn] SUBMIT QUERY button not found after 15s, searching harder...")
+            try:
+                submit_btn = ctx.get_by_text("SUBMIT", exact=False).first
+                await submit_btn.wait_for(state="visible", timeout=5000)
+                print("  [wait] Found submit via get_by_text")
+            except Exception:
+                print("  [error] Cannot find SUBMIT QUERY button at all")
 
         if self.comment:
             try:
                 textarea = ctx.locator("textarea:visible").first
-                await textarea.wait_for(state="visible", timeout=10000)
+                await textarea.wait_for(state="visible", timeout=5000)
                 await textarea.fill(self.comment)
                 print(f"  [fill] comment = '{self.comment[:50]}...'")
             except Exception:
                 print("  [info] No comment textarea found, skipping comment text")
         else:
-            print("  [info] No comment provided, leaving textarea empty")
+            print("  [info] No comment provided, skipping straight to SUBMIT QUERY")
 
         await self._screenshot("comment_filled")
-        await self._random_delay()
+        await self._random_delay(0.3, 0.5)
 
-        for text in ["SUBMIT QUERY", "Submit query", "SUBMIT", "Submit"]:
+        clicked = False
+        if submit_btn:
             try:
-                await self._click_text(ctx, text)
-                print(f"  [click] Submit: '{text}'")
-                break
+                await submit_btn.click()
+                print("  [click] SUBMIT QUERY clicked")
+                clicked = True
             except Exception:
-                continue
+                try:
+                    await submit_btn.click(force=True)
+                    print("  [click] SUBMIT QUERY force-clicked")
+                    clicked = True
+                except Exception:
+                    pass
+
+        if not clicked:
+            selectors = [
+                'button:has-text("SUBMIT QUERY")',
+                'button:has-text("SUBMIT")',
+                'button:has-text("Submit")',
+            ]
+            for sel in selectors:
+                try:
+                    btns = ctx.locator(sel)
+                    count = await btns.count()
+                    for i in range(count - 1, -1, -1):
+                        b = btns.nth(i)
+                        if await b.is_visible(timeout=2000):
+                            await b.click()
+                            print(f"  [click] SUBMIT QUERY clicked via {sel} (index {i})")
+                            clicked = True
+                            break
+                    if clicked:
+                        break
+                except Exception:
+                    continue
+
+        if not clicked:
+            print("  [error] Could not click SUBMIT QUERY")
 
         await self._wait_for_new_content(ctx, min_wait=3, max_wait=12, expect_selector="input[type='file'], button:has-text('Select')")
-        await self._random_delay(2, 4)
+        await self._random_delay(1, 2)
         await self._screenshot("comment_submitted")
 
     # ── Step 12: Upload documents ──
