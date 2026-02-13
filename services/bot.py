@@ -693,7 +693,7 @@ class VuelingRefundBot:
         await self._random_delay()
 
         phone_ready = False
-        for sel in ['text="Choose a prefix"', 'text="Mobile phone"', 'input[type="tel"]:visible', 'select:visible']:
+        for sel in ['select:visible', 'input[type="tel"]:visible', 'input[placeholder*="phone" i]:visible']:
             try:
                 el = ctx.locator(sel).first
                 await el.wait_for(state="visible", timeout=15000)
@@ -708,76 +708,41 @@ class VuelingRefundBot:
         await self._screenshot("phone_step_ready")
 
         country_selected = False
-        prefix = self.phone_country.lstrip("+")
+        raw_prefix = self.phone_country.lstrip("+")
 
-        dropdown_trigger_selectors = [
-            'text="Choose a prefix"',
-            '[class*="prefix"]:visible',
-            '[class*="country"]:visible',
-            '[class*="dropdown"]:visible',
-            '[class*="select"]:visible',
-        ]
-        for sel in dropdown_trigger_selectors:
-            try:
-                trigger = ctx.locator(sel).first
-                await trigger.wait_for(state="visible", timeout=10000)
-                await trigger.click()
-                print(f"  [click] Opened prefix dropdown via: {sel}")
-                await self._random_delay(1, 2)
-                await self._screenshot("prefix_dropdown_opened")
+        prefixes_to_try = []
+        for length in range(len(raw_prefix), 0, -1):
+            candidate = raw_prefix[:length]
+            if candidate not in prefixes_to_try:
+                prefixes_to_try.append(candidate)
+        print(f"  [info] Will try prefixes: {['+' + p for p in prefixes_to_try]}")
 
-                search_patterns = [f"(+{prefix})", f"+{prefix}"]
-                for pattern in search_patterns:
-                    try:
-                        option = ctx.get_by_text(pattern, exact=False).first
-                        await option.wait_for(state="visible", timeout=5000)
-                        await option.click()
-                        opt_text = await option.text_content() or pattern
-                        print(f"  [select] Country prefix: {opt_text.strip()}")
-                        country_selected = True
-                        break
-                    except Exception:
-                        continue
+        try:
+            native_select = ctx.locator("select:visible:not([disabled])").first
+            await native_select.wait_for(state="visible", timeout=5000)
+            options = await native_select.locator("option").all()
 
-                if country_selected:
-                    break
+            option_data = []
+            for option in options:
+                opt_text = await option.text_content() or ""
+                opt_val = await option.get_attribute("value") or ""
+                if opt_val and not await option.get_attribute("disabled"):
+                    option_data.append((opt_text, opt_val))
 
-                all_options = ctx.locator('[class*="option"]:visible, li:visible, [role="option"]:visible')
-                count = await all_options.count()
-                for i in range(count):
-                    opt = all_options.nth(i)
-                    text = await opt.text_content() or ""
-                    if f"(+{prefix})" in text or f"+{prefix}" in text:
-                        await opt.click()
-                        print(f"  [select] Country prefix (scan): {text.strip()}")
-                        country_selected = True
-                        break
-
-                if country_selected:
-                    break
-
-            except Exception as e:
-                print(f"  [info] Dropdown trigger '{sel}' not found: {e}")
-                continue
-
-        if not country_selected:
-            try:
-                native_select = ctx.locator("select:visible:not([disabled])").first
-                await native_select.wait_for(state="visible", timeout=5000)
-                options = await native_select.locator("option").all()
-                for option in options:
-                    opt_text = await option.text_content() or ""
-                    opt_val = await option.get_attribute("value") or ""
-                    if f"(+{prefix})" in opt_text or f"+{prefix}" in opt_val or opt_val == prefix:
+            for prefix in prefixes_to_try:
+                for opt_text, opt_val in option_data:
+                    if f"(+{prefix})" in opt_text or f"+{prefix}" in opt_text or opt_val == f"+{prefix}" or opt_val == prefix:
                         await native_select.select_option(value=opt_val)
-                        print(f"  [select] Country code (native): {opt_text.strip()}")
+                        print(f"  [select] Country code (native): {opt_text.strip()} (matched +{prefix})")
                         country_selected = True
                         break
-            except Exception:
-                pass
+                if country_selected:
+                    break
+        except Exception as e:
+            print(f"  [info] Native select not found: {e}")
 
         if not country_selected:
-            print(f"  [warn] Could not select country prefix +{prefix}, proceeding with default")
+            print(f"  [warn] Could not select country prefix +{raw_prefix}, proceeding with default")
 
         await self._random_delay(0.5, 1)
         await self._screenshot("prefix_selected")
