@@ -5,9 +5,8 @@ VUELING_REFUND_URL = "https://www.vueling.com/en/we-are-vueling/contact/manageme
 BOOKING_CODE = os.environ.get("BOOKING_CODE", "EHZRMC")
 EMAIL = os.environ.get("BOOKING_EMAIL", "jimaesmith9871@gmail.com")
 REASON = os.environ.get("REFUND_REASON", "ILL OR HAVING SURGERY")
-DOCUMENT_PATH = os.environ.get("DOCUMENT_PATH", "medical_certificate.pdf")
 
-HEADLESS = os.environ.get("HEADLESS", "false").lower() == "true"
+HEADLESS = True
 
 SCREENSHOTS_DIR = "screenshots"
 
@@ -16,6 +15,9 @@ MAX_DELAY = 3.0
 
 STEP_TIMEOUT = 30000
 PAGE_LOAD_TIMEOUT = 60000
+
+API_HOST = "0.0.0.0"
+API_PORT = 5000
 
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "

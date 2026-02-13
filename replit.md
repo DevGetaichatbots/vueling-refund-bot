@@ -1,66 +1,85 @@
-# Vueling Refund Bot
+# Vueling Refund Bot - SaaS API
 
 ## Overview
-A Python bot that automates the Vueling airline refund chatbot form. It navigates through the refund flow, fills in booking details, selects a cancellation reason, and optionally uploads medical documentation.
+A FastAPI-based SaaS application that automates Vueling airline refund chatbot requests. External systems send refund requests via webhook, and background workers process them using Playwright browser automation with stealth detection.
 
 ## Tech Stack
 - Python 3.11
+- FastAPI + Uvicorn (API server on port 5000)
 - Playwright (async) for browser automation
 - playwright-stealth v2 for anti-bot detection
-- System Chromium browser (headless or visible)
+- aiohttp for downloading documents from webhook URLs
+- System Chromium browser (headless)
 
 ## Project Structure
-- `main.py` - Main bot logic with `VuelingRefundBot` class, `BotStepError` exception, retry logic
-- `config.py` - All configurable settings (booking code, email, delays, timeouts)
-- `screenshots/` - Debug screenshots taken at each step
-- `pyproject.toml` - Python dependencies
-
-## How to Run
-```bash
-# Default: stops after selecting cancellation reason (step 7)
-python main.py --headless
-
-# Full flow including document upload
-python main.py --headless --full-flow
-
-# With custom arguments
-python main.py --booking-code ABCDEF --email user@email.com --headless
-
-# Visible browser (for debugging)
-python main.py --no-headless
+```
+├── main.py                 # Entry point - starts Uvicorn server
+├── app.py                  # FastAPI app with webhook + job endpoints
+├── config.py               # Global settings (delays, timeouts, URLs)
+├── models/
+│   └── schemas.py          # Pydantic models (WebhookPayload, JobResult)
+├── services/
+│   ├── bot.py              # VuelingRefundBot class (14-step chatbot flow)
+│   └── queue.py            # Async job queue + worker pool
+├── utils/
+│   └── downloads.py        # File download + temp storage management
+├── screenshots/            # Per-job screenshot folders
+└── pyproject.toml          # Python dependencies
 ```
 
-## Configuration
-Settings are controlled via environment variables or `config.py`:
-- `BOOKING_CODE` - Airline booking code (default: EHZRMC)
-- `BOOKING_EMAIL` - Email used for booking (default: jimaesmith9871@gmail.com)
-- `REFUND_REASON` - Cancellation reason (default: ILL OR HAVING SURGERY)
-- `DOCUMENT_PATH` - Path to medical certificate
-- `HEADLESS` - "true" or "false"
+## API Endpoints
+- `POST /webhook` - Submit a refund request (returns job_id)
+- `GET /jobs` - List all jobs
+- `GET /jobs/{job_id}` - Get job status, completed steps, case number
+- `GET /jobs/{job_id}/screenshots` - List screenshots for a job
+- `GET /jobs/{job_id}/screenshots/{filename}` - Download a screenshot
+- `GET /health` - Health check
 
-## Bot Flow
-1. Launch Chromium browser with stealth settings
-2. Navigate to Vueling refund page + dismiss cookie banner
-3. Wait for chatbot widget to load (detects iframes)
+## Webhook Payload
+```json
+{
+  "booking_code": "CJ6PKJ",
+  "booking_email": "jimaesmith9871@gmail.com",
+  "reason": "ILL OR HAVING SURGERY",
+  "first_name": "John",
+  "surname": "Smith",
+  "contact_email": "jamiesmith@gmail.com",
+  "phone_country": "+92",
+  "phone_number": "3176811061",
+  "comment": "Medical emergency",
+  "documents": [
+    {"url": "https://example.com/cert.pdf", "filename": "cert.pdf"}
+  ]
+}
+```
+
+## Bot Flow (14 Steps)
+1. Launch Chromium browser with stealth
+2. Navigate to Vueling refund page + dismiss cookies
+3. Wait for chatbot widget to load
 4. Select "CODE AND EMAIL" lookup method
-5. Fill booking code and email
-6. Click SEND and wait for verification
-7. Select cancellation reason (e.g., "ILL OR HAVING SURGERY")
-8. **[Stops here by default]** - use `--full-flow` to continue
-9. (Full flow) Confirm documents ready and upload medical certificate
+5. Fill booking code + email → SEND
+6. Select cancellation reason ("ILL OR HAVING SURGERY")
+7. Confirm documents ready → YES
+8. Fill first name + surname → SEND
+9. Type contact email in chat
+10. Fill phone country code + number → SEND
+11. Submit optional comment → SUBMIT QUERY
+12. Upload document files (PDF/JPG/PNG/GIF/TIFF, max 4MB)
+13. Extract case number from confirmation
+14. Decline another refund → NO
 
-## Error Handling
-- Each step has retry logic (configurable retries per step)
-- `BotStepError` custom exception tracks which step failed
-- Screenshots captured at each step and on errors
-- Structured result dict returned with success status, completed steps, and errors
-- Bot returns result dict suitable for future FastAPI integration
+## Multi-User Architecture
+- Async job queue with 2 concurrent workers
+- Each job gets a unique ID and isolated temp file storage
+- Documents downloaded from webhook URLs to `/tmp/vueling_jobs/{job_id}/`
+- Files cleaned up automatically after job completes
+- Screenshots stored per-job in `screenshots/{job_id}/`
 
 ## User Preferences
-- Will convert to FastAPI later
-- Stop after illness reason selection by default
+- Default email: jimaesmith9871@gmail.com
+- Will be extended with more refund reason options later
 
 ## Recent Changes
-- 2026-02-12: Added stop_after_reason flag, improved error handling with retries
-- 2026-02-12: Updated default email to jimaesmith9871@gmail.com
-- 2026-02-12: Initial project setup with Playwright automation
+- 2026-02-13: Converted to FastAPI SaaS with webhook, job queue, and full 14-step chatbot flow
+- 2026-02-12: Initial CLI bot setup with Playwright
