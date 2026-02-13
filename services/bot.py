@@ -351,24 +351,27 @@ class VuelingRefundBot:
     async def step_select_code_email(self):
         print("[Step 4] Selecting 'CODE AND EMAIL'...")
         ctx = await self._find_chatbot_frame()
-        await self._random_delay()
 
         for text in ["CODE AND EMAIL", "Code and email", "code and email", "code"]:
             try:
                 await self._click_text(ctx, text)
                 await self._screenshot("code_email_selected")
-                await self._wait_for_new_content(ctx, expect_selector="input:visible")
-                await self._random_delay()
-                return
+                break
             except Exception:
                 continue
-        raise Exception("Could not find 'CODE AND EMAIL' option")
+        else:
+            raise Exception("Could not find 'CODE AND EMAIL' option")
+
+        try:
+            await ctx.locator("input:visible").first.wait_for(state="visible", timeout=10000)
+            print("  [wait] Input fields appeared")
+        except Exception:
+            await asyncio.sleep(2)
 
     # ── Step 5: Fill booking code + email → SEND ──
     async def step_fill_booking(self):
         print("[Step 5] Filling booking details...")
         ctx = await self._find_chatbot_frame()
-        await self._random_delay()
 
         filled = False
         for label in ["code", "booking"]:
@@ -383,7 +386,7 @@ class VuelingRefundBot:
             await inputs.first.fill(self.booking_code)
             print(f"  [fill] first input = '{self.booking_code}'")
 
-        await self._random_delay(0.5, 1.5)
+        await self._random_delay(0.2, 0.4)
 
         try:
             await self._fill_input(ctx, "email", self.email)
@@ -395,14 +398,34 @@ class VuelingRefundBot:
                 print(f"  [fill] second input = '{self.email}'")
 
         await self._screenshot("booking_filled")
-        await self._random_delay()
+        await self._random_delay(0.2, 0.4)
 
-        for text in ["SEND", "Send", "send", "Enviar"]:
+        send_clicked = False
+        send_selectors = ['button:has-text("SEND")', 'button:has-text("Send")']
+        for sel in send_selectors:
             try:
-                await self._click_text(ctx, text)
-                break
+                btns = ctx.locator(sel)
+                count = await btns.count()
+                for i in range(count - 1, -1, -1):
+                    btn = btns.nth(i)
+                    if await btn.is_visible(timeout=2000):
+                        await btn.click()
+                        print(f"  [click] SEND clicked via {sel} (index {i})")
+                        send_clicked = True
+                        break
+                if send_clicked:
+                    break
             except Exception:
                 continue
+
+        if not send_clicked:
+            for text in ["SEND", "Send"]:
+                try:
+                    await self._click_text(ctx, text)
+                    send_clicked = True
+                    break
+                except Exception:
+                    continue
 
         await self._screenshot("send_clicked")
         print("  Waiting for booking verification and reason options...")
