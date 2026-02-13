@@ -191,14 +191,62 @@ class VuelingRefundBot:
         except Exception:
             raise Exception(f"Could not type in chat: '{message}'")
 
-    async def _wait_for_new_content(self, ctx, timeout=None):
+    async def _get_message_count(self, ctx):
+        selectors = [
+            ".message", ".chat-message", "[class*='message']",
+            "[class*='bubble']", "[class*='response']", "[class*='answer']",
+        ]
+        max_count = 0
+        for sel in selectors:
+            try:
+                count = await ctx.locator(sel).count()
+                if count > max_count:
+                    max_count = count
+            except Exception:
+                continue
+        return max_count
+
+    async def _wait_for_new_content(self, ctx, timeout=None, min_wait=2, max_wait=8, expect_selector=None):
         timeout = timeout or config.STEP_TIMEOUT
-        try:
-            await ctx.locator(".message, .chat-message, [class*='message'], [class*='bubble']").last.wait_for(
-                state="visible", timeout=timeout
-            )
-        except Exception:
-            await asyncio.sleep(3)
+        before_count = await self._get_message_count(ctx)
+        print(f"  [wait] Waiting for chatbot response (current messages: {before_count})...")
+
+        deadline = asyncio.get_event_loop().time() + (timeout / 1000)
+        poll_interval = 0.5
+        new_content_found = False
+
+        while asyncio.get_event_loop().time() < deadline:
+            await asyncio.sleep(poll_interval)
+            current_count = await self._get_message_count(ctx)
+            if current_count > before_count:
+                print(f"  [wait] New content detected (messages: {before_count} -> {current_count})")
+                new_content_found = True
+                break
+
+        if new_content_found:
+            await asyncio.sleep(min_wait)
+            stable_count = await self._get_message_count(ctx)
+            retries = 0
+            while retries < 3:
+                await asyncio.sleep(1)
+                new_stable = await self._get_message_count(ctx)
+                if new_stable == stable_count:
+                    break
+                stable_count = new_stable
+                retries += 1
+            print(f"  [wait] Chatbot response stabilized (messages: {stable_count})")
+        else:
+            print(f"  [wait] No new messages detected, waiting {max_wait}s as fallback...")
+            await asyncio.sleep(max_wait)
+
+        if expect_selector:
+            try:
+                el = ctx.locator(expect_selector).first
+                await el.wait_for(state="visible", timeout=15000)
+                print(f"  [wait] Expected element found: {expect_selector}")
+            except Exception:
+                print(f"  [wait] Expected element not found yet: {expect_selector}, waiting extra...")
+                await asyncio.sleep(5)
 
     async def _run_step(self, step_name, step_func, *args, retries=2, **kwargs):
         for attempt in range(1, retries + 1):
@@ -309,6 +357,7 @@ class VuelingRefundBot:
             try:
                 await self._click_text(ctx, text)
                 await self._screenshot("code_email_selected")
+                await self._wait_for_new_content(ctx, expect_selector="input:visible")
                 await self._random_delay()
                 return
             except Exception:
@@ -357,7 +406,7 @@ class VuelingRefundBot:
 
         await self._screenshot("send_clicked")
         print("  Waiting for booking verification...")
-        await self._wait_for_new_content(ctx)
+        await self._wait_for_new_content(ctx, min_wait=3, max_wait=12)
         await self._random_delay(2, 4)
         await self._screenshot("verification_response")
 
@@ -366,6 +415,7 @@ class VuelingRefundBot:
         print(f"[Step 6] Selecting reason: {self.reason}...")
         ctx = await self._find_chatbot_frame()
         await self._random_delay()
+        await self._wait_for_new_content(ctx, min_wait=2, max_wait=8)
 
         normalized_reason = self.reason.strip().upper()
         reason_map = {
@@ -411,7 +461,7 @@ class VuelingRefundBot:
         print(f"[Step 8] Filling name: {self.first_name} {self.surname}...")
         ctx = await self._find_chatbot_frame()
         await self._random_delay()
-        await self._wait_for_new_content(ctx)
+        await self._wait_for_new_content(ctx, min_wait=2, max_wait=8)
 
         try:
             await self._fill_input(ctx, "First name", self.first_name)
@@ -447,7 +497,7 @@ class VuelingRefundBot:
             except Exception:
                 continue
 
-        await self._wait_for_new_content(ctx)
+        await self._wait_for_new_content(ctx, min_wait=3, max_wait=10)
         await self._random_delay()
         await self._screenshot("name_sent")
 
@@ -460,22 +510,23 @@ class VuelingRefundBot:
 
         await self._type_in_chat(ctx, self.contact_email)
         await self._screenshot("contact_email_sent")
-        await self._wait_for_new_content(ctx)
-        await self._random_delay()
+        await self._wait_for_new_content(ctx, min_wait=3, max_wait=12, expect_selector="select:visible, input[type='tel']:visible")
+        await self._random_delay(2, 4)
 
     # ── Step 10: Enter phone country + number → SEND ──
     async def step_fill_phone(self):
         print(f"[Step 10] Filling phone: {self.phone_country} {self.phone_number}...")
         ctx = await self._find_chatbot_frame()
-        await self._random_delay()
-        await self._wait_for_new_content(ctx)
+        await self._random_delay(2, 4)
+        await self._wait_for_new_content(ctx, min_wait=3, max_wait=12)
+        await self._screenshot("phone_step_ready")
 
         country_selected = False
         prefix = self.phone_country.lstrip("+")
 
         try:
             country_select = ctx.locator("select:visible:not([disabled])").first
-            await country_select.wait_for(state="visible", timeout=5000)
+            await country_select.wait_for(state="visible", timeout=15000)
             options = await country_select.locator("option").all()
             for option in options:
                 opt_text = await option.text_content() or ""
@@ -500,7 +551,7 @@ class VuelingRefundBot:
         if not country_selected:
             try:
                 dropdown_trigger = ctx.locator('[class*="country"]:visible, [class*="prefix"]:visible, [class*="dropdown"]:visible, [role="listbox"]:visible').first
-                await dropdown_trigger.wait_for(state="visible", timeout=3000)
+                await dropdown_trigger.wait_for(state="visible", timeout=10000)
                 await dropdown_trigger.click()
                 await self._random_delay(0.3, 0.8)
                 for search_text in [f"(+{prefix})", f"+{prefix}", self.phone_country]:
@@ -557,7 +608,7 @@ class VuelingRefundBot:
             except Exception:
                 continue
 
-        await self._wait_for_new_content(ctx)
+        await self._wait_for_new_content(ctx, min_wait=3, max_wait=10)
         await self._random_delay()
         await self._screenshot("phone_sent")
 
@@ -590,7 +641,7 @@ class VuelingRefundBot:
             except Exception:
                 continue
 
-        await self._wait_for_new_content(ctx)
+        await self._wait_for_new_content(ctx, min_wait=3, max_wait=12, expect_selector="input[type='file'], button:has-text('Select')")
         await self._random_delay(2, 4)
         await self._screenshot("comment_submitted")
 

@@ -82,6 +82,7 @@ A FastAPI-based SaaS application that automates Vueling airline refund chatbot r
 - Comment field is optional - bot clicks Submit Query regardless
 
 ## Recent Changes
+- 2026-02-13: Improved bot reliability - new smart waiting system that tracks chatbot message count before/after each action, waits for responses to stabilize before proceeding, and expects specific UI elements at each step (input fields, dropdowns, file upload). Increased timeouts (phone dropdown 5s→15s, step timeout 30s→45s). Bot now properly waits for chatbot response after every input before moving to next step.
 - 2026-02-13: Added all 4 refund reasons, document upload confirmation ("Yes, continue"), improved case/reference number extraction
 - 2026-02-13: Added PREGNANT reason, made comment optional, fixed phone country dropdown selection, improved file upload with "Select them" button
 - 2026-02-13: Converted to FastAPI SaaS with webhook, job queue, and full 14-step chatbot flow
