@@ -732,7 +732,7 @@ class VuelingRefundBot:
 
             for prefix in prefixes_to_try:
                 for opt_text, opt_val in option_data:
-                    if f"(+{prefix})" in opt_text or f"+{prefix}" in opt_text or opt_val == f"+{prefix}" or opt_val == prefix:
+                    if f"(+{prefix})" in opt_text or opt_val == f"+{prefix}" or opt_val == prefix:
                         await native_select.select_option(value=opt_val)
                         print(f"  [select] Country code (native): {opt_text.strip()} (matched +{prefix})")
                         matched_prefix = prefix
