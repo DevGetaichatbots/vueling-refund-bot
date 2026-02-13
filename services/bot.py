@@ -371,6 +371,8 @@ class VuelingRefundBot:
         reason_map = {
             "ILL OR HAVING SURGERY": ["ILL OR HAVING SURGERY", "Ill or having surgery", "ILL"],
             "PREGNANT": ["PREGNANT", "Pregnant", "pregnant"],
+            "COURT SUMMONS OR SERVICE AT POLLING STATION": ["COURT SUMMONS OR SERVICE AT POLLING STATION", "Court summons or service at polling station", "COURT SUMMONS", "Court summons"],
+            "SOMEONE'S DEATH": ["SOMEONE'S DEATH", "Someone's death", "SOMEONE'S DEATH", "Someone's Death"],
         }
         reason_variants = reason_map.get(normalized_reason, [])
         reason_variants = [self.reason] + [v for v in reason_variants if v != self.reason]
@@ -667,6 +669,21 @@ class VuelingRefundBot:
         await self._wait_for_new_content(ctx)
         await self._random_delay()
 
+        for confirm_text in ["Yes, continue", "YES, CONTINUE", "Yes", "Continue"]:
+            try:
+                confirm_btn = ctx.locator(f'button:has-text("{confirm_text}")').first
+                await confirm_btn.wait_for(state="visible", timeout=5000)
+                await confirm_btn.click()
+                print(f"  [click] Document confirmation: '{confirm_text}'")
+                await self._random_delay(1, 2)
+                await self._screenshot("documents_confirmed")
+                break
+            except Exception:
+                continue
+
+        await self._wait_for_new_content(ctx)
+        await self._random_delay()
+
     # ── Step 13: Extract case number from confirmation ──
     async def step_get_confirmation(self):
         print("[Step 13] Getting confirmation and case number...")
@@ -676,11 +693,20 @@ class VuelingRefundBot:
 
         try:
             page_text = await ctx.locator("body").text_content()
-            case_match = re.search(r"case number[:\s]*(\d+)", page_text, re.IGNORECASE)
-            if case_match:
-                self.case_number = case_match.group(1)
-                print(f"  [info] Case number found: {self.case_number}")
-            else:
+            patterns = [
+                r"reference[:\s]+(\d+)",
+                r"case number[:\s]*(\d+)",
+                r"case[:\s]+(\d+)",
+                r"processed under reference[:\s]+(\d+)",
+                r"under reference[:\s]+(\d+)",
+            ]
+            for pattern in patterns:
+                case_match = re.search(pattern, page_text, re.IGNORECASE)
+                if case_match:
+                    self.case_number = case_match.group(1)
+                    print(f"  [info] Case number found: {self.case_number}")
+                    break
+            if not self.case_number:
                 case_match = re.search(r"\b(\d{6,10})\b", page_text)
                 if case_match:
                     self.case_number = case_match.group(1)

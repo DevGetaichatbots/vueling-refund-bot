@@ -8,6 +8,8 @@ import time
 class RefundReason(str, Enum):
     ILL_OR_SURGERY = "ILL OR HAVING SURGERY"
     PREGNANT = "PREGNANT"
+    COURT_SUMMONS = "COURT SUMMONS OR SERVICE AT POLLING STATION"
+    DEATH = "SOMEONE'S DEATH"
 
 
 class DocumentInput(BaseModel):

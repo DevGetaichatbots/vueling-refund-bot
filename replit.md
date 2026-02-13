@@ -40,7 +40,7 @@ A FastAPI-based SaaS application that automates Vueling airline refund chatbot r
 {
   "booking_code": "CJ6PKJ",
   "booking_email": "jimaesmith9871@gmail.com",
-  "reason": "ILL OR HAVING SURGERY",  // or "PREGNANT"
+  "reason": "ILL OR HAVING SURGERY",  // or "PREGNANT", "COURT SUMMONS OR SERVICE AT POLLING STATION", "SOMEONE'S DEATH"
   "first_name": "John",
   "surname": "Smith",
   "contact_email": "jamiesmith@gmail.com",
@@ -59,14 +59,14 @@ A FastAPI-based SaaS application that automates Vueling airline refund chatbot r
 3. Wait for chatbot widget to load
 4. Select "CODE AND EMAIL" lookup method
 5. Fill booking code + email → SEND
-6. Select cancellation reason ("ILL OR HAVING SURGERY" or "PREGNANT")
+6. Select cancellation reason ("ILL OR HAVING SURGERY", "PREGNANT", "COURT SUMMONS OR SERVICE AT POLLING STATION", "SOMEONE'S DEATH")
 7. Confirm documents ready → YES
 8. Fill first name + surname → SEND
 9. Type contact email in chat
 10. Select phone country prefix from dropdown + fill number → SEND
 11. Submit optional comment (or just click SUBMIT QUERY if none) → SUBMIT QUERY
-12. Upload documents via "Select them" button (PDF/JPG/PNG/GIF/TIFF, max 4MB)
-13. Extract case number from confirmation
+12. Upload documents via "Select them" button (PDF/JPG/PNG/GIF/TIFF, max 4MB) → click "Yes, continue"
+13. Extract case/reference number from confirmation
 14. Decline another refund → NO
 
 ## Multi-User Architecture
@@ -78,10 +78,11 @@ A FastAPI-based SaaS application that automates Vueling airline refund chatbot r
 
 ## User Preferences
 - Default email: jimaesmith9871@gmail.com
-- Refund reasons supported: "ILL OR HAVING SURGERY", "PREGNANT"
+- Refund reasons supported: "ILL OR HAVING SURGERY", "PREGNANT", "COURT SUMMONS OR SERVICE AT POLLING STATION", "SOMEONE'S DEATH"
 - Comment field is optional - bot clicks Submit Query regardless
 
 ## Recent Changes
+- 2026-02-13: Added all 4 refund reasons, document upload confirmation ("Yes, continue"), improved case/reference number extraction
 - 2026-02-13: Added PREGNANT reason, made comment optional, fixed phone country dropdown selection, improved file upload with "Select them" button
 - 2026-02-13: Converted to FastAPI SaaS with webhook, job queue, and full 14-step chatbot flow
 - 2026-02-12: Initial CLI bot setup with Playwright
