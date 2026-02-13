@@ -510,7 +510,7 @@ class VuelingRefundBot:
 
         await self._type_in_chat(ctx, self.contact_email)
         await self._screenshot("contact_email_sent")
-        await self._wait_for_new_content(ctx, min_wait=3, max_wait=12, expect_selector="select:visible, input[type='tel']:visible")
+        await self._wait_for_new_content(ctx, min_wait=3, max_wait=12, expect_selector='text="Choose a prefix", input[type="tel"]:visible, select:visible')
         await self._random_delay(2, 4)
 
     # ── Step 10: Enter phone country + number → SEND ──
@@ -524,60 +524,95 @@ class VuelingRefundBot:
         country_selected = False
         prefix = self.phone_country.lstrip("+")
 
-        try:
-            country_select = ctx.locator("select:visible:not([disabled])").first
-            await country_select.wait_for(state="visible", timeout=15000)
-            options = await country_select.locator("option").all()
-            for option in options:
-                opt_text = await option.text_content() or ""
-                opt_val = await option.get_attribute("value") or ""
-                if f"(+{prefix})" in opt_text or f"+{prefix}" in opt_val or opt_val == prefix or opt_val == f"+{prefix}":
-                    await country_select.select_option(value=opt_val)
-                    print(f"  [select] Country code: {opt_text.strip()} (value={opt_val})")
-                    country_selected = True
-                    break
-            if not country_selected:
-                for option in options:
-                    opt_text = await option.text_content() or ""
-                    opt_val = await option.get_attribute("value") or ""
-                    if prefix in opt_text or prefix in opt_val:
-                        await country_select.select_option(value=opt_val)
-                        print(f"  [select] Country code (fuzzy): {opt_text.strip()}")
-                        country_selected = True
-                        break
-        except Exception as e:
-            print(f"  [info] Select element not found: {e}")
-
-        if not country_selected:
+        dropdown_trigger_selectors = [
+            'text="Choose a prefix"',
+            '[class*="prefix"]:visible',
+            '[class*="country"]:visible',
+            '[class*="dropdown"]:visible',
+            '[class*="select"]:visible',
+        ]
+        for sel in dropdown_trigger_selectors:
             try:
-                dropdown_trigger = ctx.locator('[class*="country"]:visible, [class*="prefix"]:visible, [class*="dropdown"]:visible, [role="listbox"]:visible').first
-                await dropdown_trigger.wait_for(state="visible", timeout=10000)
-                await dropdown_trigger.click()
-                await self._random_delay(0.3, 0.8)
-                for search_text in [f"(+{prefix})", f"+{prefix}", self.phone_country]:
+                trigger = ctx.locator(sel).first
+                await trigger.wait_for(state="visible", timeout=10000)
+                await trigger.click()
+                print(f"  [click] Opened prefix dropdown via: {sel}")
+                await self._random_delay(1, 2)
+                await self._screenshot("prefix_dropdown_opened")
+
+                search_patterns = [f"(+{prefix})", f"+{prefix}"]
+                for pattern in search_patterns:
                     try:
-                        opt = ctx.get_by_text(search_text, exact=False).first
-                        await opt.wait_for(state="visible", timeout=2000)
-                        await opt.click()
-                        print(f"  [click] Country code via dropdown: {search_text}")
+                        option = ctx.get_by_text(pattern, exact=False).first
+                        await option.wait_for(state="visible", timeout=5000)
+                        await option.click()
+                        opt_text = await option.text_content() or pattern
+                        print(f"  [select] Country prefix: {opt_text.strip()}")
                         country_selected = True
                         break
                     except Exception:
                         continue
-            except Exception:
-                print(f"  [info] Country code selection skipped entirely")
 
-        await self._random_delay(0.3, 0.8)
+                if country_selected:
+                    break
+
+                all_options = ctx.locator('[class*="option"]:visible, li:visible, [role="option"]:visible')
+                count = await all_options.count()
+                for i in range(count):
+                    opt = all_options.nth(i)
+                    text = await opt.text_content() or ""
+                    if f"(+{prefix})" in text or f"+{prefix}" in text:
+                        await opt.click()
+                        print(f"  [select] Country prefix (scan): {text.strip()}")
+                        country_selected = True
+                        break
+
+                if country_selected:
+                    break
+
+            except Exception as e:
+                print(f"  [info] Dropdown trigger '{sel}' not found: {e}")
+                continue
+
+        if not country_selected:
+            try:
+                native_select = ctx.locator("select:visible:not([disabled])").first
+                await native_select.wait_for(state="visible", timeout=5000)
+                options = await native_select.locator("option").all()
+                for option in options:
+                    opt_text = await option.text_content() or ""
+                    opt_val = await option.get_attribute("value") or ""
+                    if f"(+{prefix})" in opt_text or f"+{prefix}" in opt_val or opt_val == prefix:
+                        await native_select.select_option(value=opt_val)
+                        print(f"  [select] Country code (native): {opt_text.strip()}")
+                        country_selected = True
+                        break
+            except Exception:
+                pass
+
+        if not country_selected:
+            print(f"  [warn] Could not select country prefix +{prefix}, proceeding with default")
+
+        await self._random_delay(0.5, 1)
+        await self._screenshot("prefix_selected")
 
         phone_filled = False
-        try:
-            phone_input = ctx.locator('input[type="tel"]:visible:not([disabled])').first
-            await phone_input.wait_for(state="visible", timeout=5000)
-            await phone_input.fill(self.phone_number)
-            print(f"  [fill] phone tel input = '{self.phone_number}'")
-            phone_filled = True
-        except Exception:
-            pass
+        phone_selectors = [
+            'input[placeholder*="phone" i]:visible',
+            'input[placeholder*="Mobile" i]:visible',
+            'input[type="tel"]:visible:not([disabled])',
+            'input[type="number"]:visible:not([disabled])',
+        ]
+        for sel in phone_selectors:
+            try:
+                phone_input = ctx.locator(sel).first
+                await phone_input.wait_for(state="visible", timeout=5000)
+                await phone_input.fill(self.phone_number)
+                print(f"  [fill] phone input via '{sel}' = '{self.phone_number}'")
+                phone_filled = True
+                break
+            except Exception:
+                continue
 
         if not phone_filled:
             try:
@@ -587,9 +622,10 @@ class VuelingRefundBot:
                     inp = enabled_inputs.nth(i)
                     inp_type = await inp.get_attribute("type") or "text"
                     inp_val = await inp.get_attribute("value") or ""
-                    if inp_type in ("text", "tel", "number") and not inp_val:
+                    placeholder = await inp.get_attribute("placeholder") or ""
+                    if inp_type in ("text", "tel", "number") and not inp_val and "prefix" not in placeholder.lower():
                         await inp.fill(self.phone_number)
-                        print(f"  [fill] enabled input #{i} = '{self.phone_number}'")
+                        print(f"  [fill] phone input #{i} = '{self.phone_number}'")
                         phone_filled = True
                         break
             except Exception:
