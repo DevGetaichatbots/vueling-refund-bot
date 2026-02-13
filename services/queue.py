@@ -1,4 +1,6 @@
 import asyncio
+import os
+import shutil
 import time
 import traceback
 from typing import Optional
@@ -6,6 +8,7 @@ from typing import Optional
 from models.schemas import WebhookPayload, JobResult, JobStatus, create_job
 from services.bot import VuelingRefundBot
 from utils.downloads import download_files_for_job, cleanup_job_files
+import config
 
 
 class JobStore:
@@ -119,6 +122,10 @@ async def process_job(job_id: str):
 
     finally:
         cleanup_job_files(job_id)
+        screenshots_dir = os.path.join(config.SCREENSHOTS_DIR, job_id)
+        if os.path.exists(screenshots_dir):
+            shutil.rmtree(screenshots_dir, ignore_errors=True)
+            print(f"  [cleanup] Removed screenshots for job {job_id}")
 
 
 async def worker(worker_id: int):
