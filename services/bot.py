@@ -708,6 +708,7 @@ class VuelingRefundBot:
         await self._screenshot("phone_step_ready")
 
         country_selected = False
+        matched_prefix = ""
         raw_prefix = self.phone_country.lstrip("+")
 
         prefixes_to_try = []
@@ -734,6 +735,7 @@ class VuelingRefundBot:
                     if f"(+{prefix})" in opt_text or f"+{prefix}" in opt_text or opt_val == f"+{prefix}" or opt_val == prefix:
                         await native_select.select_option(value=opt_val)
                         print(f"  [select] Country code (native): {opt_text.strip()} (matched +{prefix})")
+                        matched_prefix = prefix
                         country_selected = True
                         break
                 if country_selected:
@@ -747,6 +749,10 @@ class VuelingRefundBot:
         await self._random_delay(0.5, 1)
         await self._screenshot("prefix_selected")
 
+        leftover = raw_prefix[len(matched_prefix):] if matched_prefix else ""
+        full_phone = leftover + self.phone_number
+        print(f"  [info] Matched prefix: +{matched_prefix}, leftover digits: '{leftover}', full phone: '{full_phone}'")
+
         phone_filled = False
         phone_selectors = [
             'input[placeholder*="phone" i]:visible',
@@ -758,8 +764,8 @@ class VuelingRefundBot:
             try:
                 phone_input = ctx.locator(sel).first
                 await phone_input.wait_for(state="visible", timeout=5000)
-                await phone_input.fill(self.phone_number)
-                print(f"  [fill] phone input via '{sel}' = '{self.phone_number}'")
+                await phone_input.fill(full_phone)
+                print(f"  [fill] phone input via '{sel}' = '{full_phone}'")
                 phone_filled = True
                 break
             except Exception:
