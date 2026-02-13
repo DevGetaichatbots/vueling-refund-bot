@@ -711,7 +711,7 @@ class VuelingRefundBot:
         raw_prefix = self.phone_country.lstrip("+")
 
         prefixes_to_try = []
-        for length in range(len(raw_prefix), 0, -1):
+        for length in range(1, len(raw_prefix) + 1):
             candidate = raw_prefix[:length]
             if candidate not in prefixes_to_try:
                 prefixes_to_try.append(candidate)
