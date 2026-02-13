@@ -405,9 +405,22 @@ class VuelingRefundBot:
                 continue
 
         await self._screenshot("send_clicked")
-        print("  Waiting for booking verification...")
-        await self._wait_for_new_content(ctx, min_wait=3, max_wait=12)
-        await self._random_delay(2, 4)
+        print("  Waiting for booking verification and reason options...")
+        verified = False
+        for attempt in range(45):
+            await asyncio.sleep(1)
+            try:
+                page_text = await ctx.locator("body").text_content() or ""
+                lower_text = page_text.lower()
+                if "ill" in lower_text or "pregnant" in lower_text or "court" in lower_text or "death" in lower_text or "reason" in lower_text or "cancellation" in lower_text:
+                    print("  [wait] Booking verified - reason options detected")
+                    verified = True
+                    break
+            except Exception:
+                pass
+        if not verified:
+            print("  [wait] Reason options not detected after 45s, proceeding anyway")
+        await asyncio.sleep(1)
         await self._screenshot("verification_response")
 
     # ── Step 6: Select cancellation reason ──
@@ -509,37 +522,96 @@ class VuelingRefundBot:
                     print(f"  [fill] second input = '{self.surname}'")
 
         await self._screenshot("name_filled")
-        await self._random_delay()
+        await self._random_delay(0.5, 1)
 
+        send_clicked = False
         for text in ["SEND", "Send"]:
             try:
                 await self._click_text(ctx, text)
+                send_clicked = True
+                print(f"  [click] SEND button clicked")
                 break
             except Exception:
                 continue
 
-        await self._wait_for_new_content(ctx, min_wait=3, max_wait=10)
-        await self._random_delay()
+        if not send_clicked:
+            try:
+                send_btn = ctx.locator('button:has-text("SEND"), button:has-text("Send")').first
+                await send_btn.wait_for(state="visible", timeout=5000)
+                await send_btn.click()
+                print(f"  [click] SEND button clicked (fallback)")
+            except Exception:
+                print("  [warn] Could not find SEND button for name")
+
+        print("  [wait] Waiting for chatbot to ask for email...")
+        email_prompt_found = False
+        for attempt in range(30):
+            await asyncio.sleep(1)
+            try:
+                page_text = await ctx.locator("body").text_content() or ""
+                if "email" in page_text.lower() and "contact" in page_text.lower():
+                    print("  [wait] Email prompt detected in chatbot response")
+                    email_prompt_found = True
+                    break
+            except Exception:
+                pass
+        if not email_prompt_found:
+            print("  [wait] Email prompt not detected after 30s, proceeding anyway")
+            await asyncio.sleep(3)
+        else:
+            await asyncio.sleep(1)
+
         await self._screenshot("name_sent")
 
     # ── Step 9: Enter contact email (type in chat) ──
     async def step_contact_email(self):
         print(f"[Step 9] Entering contact email: {self.contact_email}...")
         ctx = await self._find_chatbot_frame()
-        await self._random_delay()
+        await self._random_delay(0.5, 1)
 
+        email_prompt_visible = False
         try:
-            chat_input = ctx.locator('input[placeholder*="reply" i], input[placeholder*="write" i], textarea[placeholder*="reply" i], textarea[placeholder*="write" i], input:visible, textarea:visible').last
-            await chat_input.wait_for(state="visible", timeout=15000)
-            print("  [wait] Chat input is ready")
+            page_text = await ctx.locator("body").text_content() or ""
+            if "email" in page_text.lower() and "contact" in page_text.lower():
+                email_prompt_visible = True
+                print("  [wait] Email prompt is visible, proceeding to type email")
         except Exception:
-            print("  [wait] Chat input not found, waiting for chatbot...")
-            await self._wait_for_new_content(ctx, min_wait=2, max_wait=8)
+            pass
+
+        if not email_prompt_visible:
+            print("  [wait] Waiting for email prompt from chatbot...")
+            for attempt in range(20):
+                await asyncio.sleep(1)
+                try:
+                    page_text = await ctx.locator("body").text_content() or ""
+                    if "email" in page_text.lower():
+                        print("  [wait] Email prompt appeared")
+                        email_prompt_visible = True
+                        break
+                except Exception:
+                    pass
+            if not email_prompt_visible:
+                print("  [warn] Email prompt never appeared, trying anyway")
+            await asyncio.sleep(1)
 
         await self._type_in_chat(ctx, self.contact_email)
         await self._screenshot("contact_email_sent")
-        await self._wait_for_new_content(ctx, min_wait=3, max_wait=12, expect_selector='text="Choose a prefix", input[type="tel"]:visible, select:visible')
-        await self._random_delay(2, 4)
+
+        print("  [wait] Waiting for phone form to appear...")
+        phone_form_found = False
+        for attempt in range(30):
+            await asyncio.sleep(1)
+            try:
+                page_text = await ctx.locator("body").text_content() or ""
+                if "phone" in page_text.lower() or "prefix" in page_text.lower():
+                    print("  [wait] Phone form prompt detected")
+                    phone_form_found = True
+                    break
+            except Exception:
+                pass
+        if not phone_form_found:
+            print("  [wait] Phone prompt not detected after 30s, proceeding anyway")
+        await asyncio.sleep(1)
 
     # ── Step 10: Enter phone country + number → SEND ──
     async def step_fill_phone(self):
@@ -681,12 +753,26 @@ class VuelingRefundBot:
         for text in ["SEND", "Send"]:
             try:
                 await self._click_text(ctx, text)
+                print(f"  [click] Phone SEND clicked")
                 break
             except Exception:
                 continue
 
-        await self._wait_for_new_content(ctx, min_wait=3, max_wait=10)
-        await self._random_delay()
+        print("  [wait] Waiting for comment/submit prompt...")
+        comment_prompt_found = False
+        for attempt in range(30):
+            await asyncio.sleep(1)
+            try:
+                page_text = await ctx.locator("body").text_content() or ""
+                if "comment" in page_text.lower() or "submit query" in page_text.lower() or "more information" in page_text.lower():
+                    print("  [wait] Comment/submit prompt detected")
+                    comment_prompt_found = True
+                    break
+            except Exception:
+                pass
+        if not comment_prompt_found:
+            print("  [wait] Comment prompt not detected after 30s, proceeding anyway")
+        await asyncio.sleep(1)
         await self._screenshot("phone_sent")
 
     # ── Step 11: Optional comment → SUBMIT QUERY ──
