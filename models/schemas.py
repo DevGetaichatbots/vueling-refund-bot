@@ -7,6 +7,7 @@ import time
 
 class RefundReason(str, Enum):
     ILL_OR_SURGERY = "ILL OR HAVING SURGERY"
+    PREGNANT = "PREGNANT"
 
 
 class DocumentInput(BaseModel):
@@ -23,7 +24,7 @@ class WebhookPayload(BaseModel):
     contact_email: str = Field(..., description="Contact email for case updates")
     phone_country: str = Field(default="+92", description="Phone country code (e.g. +92, +34, +1)")
     phone_number: str = Field(..., description="Contact phone number without country code")
-    comment: Optional[str] = Field(default=None, description="Optional comment about the case")
+    comment: Optional[str] = Field(default=None, description="Optional additional comment about the case. If not provided, bot just clicks Submit Query.")
     documents: list[DocumentInput] = Field(default_factory=list, description="List of documents to upload (URLs + filenames)")
     webhook_callback_url: Optional[str] = Field(default=None, description="Optional URL to POST results back to when job completes")
 
