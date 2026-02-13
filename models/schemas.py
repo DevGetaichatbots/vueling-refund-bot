@@ -13,8 +13,9 @@ class RefundReason(str, Enum):
 
 
 class DocumentInput(BaseModel):
-    url: str = Field(..., description="URL to download the document from")
     filename: str = Field(..., description="Original filename (e.g. medical_cert.pdf)")
+    url: Optional[str] = Field(default=None, description="URL to download the document from")
+    base64: Optional[str] = Field(default=None, description="Base64-encoded file content")
 
 
 class WebhookPayload(BaseModel):
@@ -27,7 +28,7 @@ class WebhookPayload(BaseModel):
     phone_country: str = Field(default="+92", description="Phone country code (e.g. +92, +34, +1)")
     phone_number: str = Field(..., description="Contact phone number without country code")
     comment: Optional[str] = Field(default=None, description="Optional additional comment about the case. If not provided, bot just clicks Submit Query.")
-    documents: list[DocumentInput] = Field(default_factory=list, description="List of documents to upload (URLs + filenames)")
+    documents: list[DocumentInput] = Field(default_factory=list, description="List of documents (base64 or URL)")
     webhook_callback_url: Optional[str] = Field(default=None, description="Optional URL to POST results back to when job completes")
 
 
