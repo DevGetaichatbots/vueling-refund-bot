@@ -415,7 +415,14 @@ class VuelingRefundBot:
         print(f"[Step 6] Selecting reason: {self.reason}...")
         ctx = await self._find_chatbot_frame()
         await self._random_delay()
-        await self._wait_for_new_content(ctx, min_wait=2, max_wait=8)
+
+        try:
+            reason_btn = ctx.locator('button:visible').first
+            await reason_btn.wait_for(state="visible", timeout=15000)
+            print("  [wait] Reason buttons are ready")
+        except Exception:
+            print("  [wait] Reason buttons not found, waiting for chatbot...")
+            await self._wait_for_new_content(ctx, min_wait=2, max_wait=8)
 
         normalized_reason = self.reason.strip().upper()
         reason_map = {
@@ -442,8 +449,15 @@ class VuelingRefundBot:
     async def step_confirm_documents(self):
         print("[Step 7] Confirming documents ready (YES)...")
         ctx = await self._find_chatbot_frame()
-        await self._random_delay(2, 4)
-        await self._wait_for_new_content(ctx)
+        await self._random_delay()
+
+        try:
+            yes_btn = ctx.locator('button:has-text("YES"), button:has-text("Yes")').first
+            await yes_btn.wait_for(state="visible", timeout=15000)
+            print("  [wait] YES/NO buttons are ready")
+        except Exception:
+            print("  [wait] YES button not found, waiting for chatbot...")
+            await self._wait_for_new_content(ctx, min_wait=2, max_wait=8)
 
         for text in ["YES", "Yes", "yes"]:
             try:
@@ -461,7 +475,14 @@ class VuelingRefundBot:
         print(f"[Step 8] Filling name: {self.first_name} {self.surname}...")
         ctx = await self._find_chatbot_frame()
         await self._random_delay()
-        await self._wait_for_new_content(ctx, min_wait=2, max_wait=8)
+
+        try:
+            name_input = ctx.locator('input:visible').first
+            await name_input.wait_for(state="visible", timeout=15000)
+            print("  [wait] Name form is ready")
+        except Exception:
+            print("  [wait] Name form not found, waiting for chatbot...")
+            await self._wait_for_new_content(ctx, min_wait=2, max_wait=8, expect_selector="input:visible")
 
         try:
             await self._fill_input(ctx, "First name", self.first_name)
@@ -506,7 +527,14 @@ class VuelingRefundBot:
         print(f"[Step 9] Entering contact email: {self.contact_email}...")
         ctx = await self._find_chatbot_frame()
         await self._random_delay()
-        await self._wait_for_new_content(ctx)
+
+        try:
+            chat_input = ctx.locator('input[placeholder*="reply" i], input[placeholder*="write" i], textarea[placeholder*="reply" i], textarea[placeholder*="write" i], input:visible, textarea:visible').last
+            await chat_input.wait_for(state="visible", timeout=15000)
+            print("  [wait] Chat input is ready")
+        except Exception:
+            print("  [wait] Chat input not found, waiting for chatbot...")
+            await self._wait_for_new_content(ctx, min_wait=2, max_wait=8)
 
         await self._type_in_chat(ctx, self.contact_email)
         await self._screenshot("contact_email_sent")
@@ -517,8 +545,21 @@ class VuelingRefundBot:
     async def step_fill_phone(self):
         print(f"[Step 10] Filling phone: {self.phone_country} {self.phone_number}...")
         ctx = await self._find_chatbot_frame()
-        await self._random_delay(2, 4)
-        await self._wait_for_new_content(ctx, min_wait=3, max_wait=12)
+        await self._random_delay()
+
+        phone_ready = False
+        for sel in ['text="Choose a prefix"', 'text="Mobile phone"', 'input[type="tel"]:visible', 'select:visible']:
+            try:
+                el = ctx.locator(sel).first
+                await el.wait_for(state="visible", timeout=15000)
+                print(f"  [wait] Phone form ready (found: {sel})")
+                phone_ready = True
+                break
+            except Exception:
+                continue
+        if not phone_ready:
+            print("  [wait] Phone form not detected, waiting for chatbot...")
+            await self._wait_for_new_content(ctx, min_wait=3, max_wait=12)
         await self._screenshot("phone_step_ready")
 
         country_selected = False
@@ -653,7 +694,14 @@ class VuelingRefundBot:
         print("[Step 11] Submitting comment...")
         ctx = await self._find_chatbot_frame()
         await self._random_delay()
-        await self._wait_for_new_content(ctx)
+
+        try:
+            submit_or_textarea = ctx.locator('button:has-text("SUBMIT"), textarea:visible').first
+            await submit_or_textarea.wait_for(state="visible", timeout=15000)
+            print("  [wait] Comment/submit form is ready")
+        except Exception:
+            print("  [wait] Comment form not found, waiting for chatbot...")
+            await self._wait_for_new_content(ctx, min_wait=2, max_wait=8)
 
         if self.comment:
             try:
