@@ -6,7 +6,6 @@ import traceback
 from typing import Optional
 
 from models.schemas import WebhookPayload, JobResult, JobStatus, create_job
-from services.bot import VuelingRefundBot
 from utils.downloads import download_files_for_job, cleanup_job_files
 import config
 
@@ -82,6 +81,7 @@ async def process_job(job_id: str):
             if updates:
                 await job_store.update(job_id, **updates)
 
+        from services.bot import VuelingRefundBot
         bot = VuelingRefundBot(
             booking_code=payload.booking_code,
             email=payload.booking_email,
