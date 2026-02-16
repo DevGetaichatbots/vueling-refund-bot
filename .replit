@@ -13,7 +13,7 @@ requiredFiles = [".replit", "replit.nix"]
 
 [deployment]
 deploymentTarget = "autoscale"
-build = ["bash", "-c", "pip install --quiet -r requirements.txt"]
+build = ["bash", "-c", "mkdir -p /home/runner/workspace/.pythonlibs/lib && pip install --quiet -r requirements.txt"]
 run = ["python", "main.py"]
 
 [agent]
