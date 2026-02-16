@@ -95,7 +95,15 @@ When `callback_url` is provided in the webhook, the bot POSTs progress updates a
 Steps in order: navigating_to_portal (5-15%) → entering_booking (20-25%) → selecting_refund_type (30%) → filling_passenger (35-50%) → submitting_claim (60%) → uploading_documents (70%) → submitting_claim (85%) → completed (100%)
 On error: `{"step": "error", "status": "error", "message": "...", "progress": <last_progress>}`
 
+## Authentication
+- All endpoints (except `/` and `/health`) require `X-Api-Key` header
+- Set `API_KEYS` env var (comma-separated) to restrict which keys are valid
+- If `API_KEYS` is not set, any provided key is accepted (dev mode) but each key's jobs are still isolated
+- Jobs are scoped by API key: each caller only sees their own jobs via `/jobs`
+- Job detail/screenshot endpoints check ownership before returning data
+
 ## Recent Changes
+- 2026-02-16: Added API key authentication and multi-user job isolation - each API key only sees its own jobs
 - 2026-02-16: Added real-time status callback system - bot POSTs progress updates to callback_url at each step with claimId, step name, message, progress %, and status
 - 2026-02-13: Improved bot reliability - new smart waiting system that tracks chatbot message count before/after each action, waits for responses to stabilize before proceeding, and expects specific UI elements at each step (input fields, dropdowns, file upload). Increased timeouts (phone dropdown 5s→15s, step timeout 30s→45s). Bot now properly waits for chatbot response after every input before moving to next step.
 - 2026-02-13: Added all 4 refund reasons, document upload confirmation ("Yes, continue"), improved case/reference number extraction

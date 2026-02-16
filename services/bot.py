@@ -109,16 +109,18 @@ class VuelingRefundBot:
         except Exception as e:
             print(f"  [callback] Failed to send status update: {e}")
 
-    def _notify_progress(self):
+    async def _notify_progress(self):
         if self.on_progress:
             screenshots_dir = Path(self.screenshots_dir)
             screenshots = sorted([str(p) for p in screenshots_dir.glob("*.png")]) if screenshots_dir.exists() else []
-            self.on_progress(
+            result = self.on_progress(
                 completed_steps=list(self.completed_steps),
                 errors=list(self.errors),
                 screenshots=screenshots,
                 case_number=self.case_number,
             )
+            if asyncio.iscoroutine(result):
+                await result
 
     async def _random_delay(self, min_s=None, max_s=None):
         lo = min_s or config.MIN_DELAY
@@ -303,7 +305,7 @@ class VuelingRefundBot:
             try:
                 result = await step_func(*args, **kwargs)
                 self.completed_steps.append(step_name)
-                self._notify_progress()
+                await self._notify_progress()
                 final_status = "completed" if step_name == "Decline Another" else "in_progress"
                 await self._send_status_callback(step_name, status=final_status)
                 return result
@@ -316,7 +318,7 @@ class VuelingRefundBot:
                 else:
                     screenshot_path = await self._screenshot(f"error_{step_name.replace(' ', '_').lower()}")
                     self.errors.append({"step": step_name, "error": str(e), "screenshot": screenshot_path})
-                    self._notify_progress()
+                    await self._notify_progress()
                     await self._send_status_callback(step_name, status="error", error_message=str(e))
                     raise BotStepError(step_name, str(e), screenshot_path)
 
