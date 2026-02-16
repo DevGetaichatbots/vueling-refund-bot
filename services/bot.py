@@ -1169,7 +1169,7 @@ class VuelingRefundBot:
         print(f"  Reason        : {self.reason}")
         print(f"  Name          : {self.first_name} {self.surname}")
         print(f"  Contact Email : {self.contact_email}")
-        print(f"  Phone         : {self.phone_country} {self.phone_number}")
+        print(f"  Phone         : {self.phone_prefix} {self.phone_number}")
         print(f"  Comment       : {self.comment[:50] if self.comment else 'None'}...")
         print(f"  Documents     : {len(self.document_paths)} file(s)")
         print(f"  Headless      : {self.headless}")
