@@ -50,14 +50,13 @@ class JobResult(BaseModel):
     booking_email: str
     reason: str
     claim_id: Optional[str] = None
-    api_key: Optional[str] = Field(default=None, exclude=True)
     completed_steps: list[str] = Field(default_factory=list)
     case_number: Optional[str] = None
     errors: list[dict] = Field(default_factory=list)
     screenshots: list[str] = Field(default_factory=list)
 
 
-def create_job(payload: WebhookPayload, api_key: Optional[str] = None) -> JobResult:
+def create_job(payload: WebhookPayload) -> JobResult:
     return JobResult(
         job_id=str(uuid.uuid4()),
         status=JobStatus.QUEUED,
@@ -66,5 +65,4 @@ def create_job(payload: WebhookPayload, api_key: Optional[str] = None) -> JobRes
         booking_email=payload.booking_email,
         reason=payload.reason.value,
         claim_id=payload.claim_id,
-        api_key=api_key,
     )

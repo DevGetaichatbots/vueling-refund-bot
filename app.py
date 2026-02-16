@@ -2,7 +2,7 @@ import asyncio
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Header, Depends
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 
 from models.schemas import WebhookPayload, JobResult, JobStatus
@@ -11,32 +11,10 @@ from services.queue import enqueue_job, job_store, start_workers
 
 worker_tasks = []
 
-API_KEYS = set()
-
-
-def _load_api_keys():
-    raw = os.environ.get("API_KEYS", "")
-    if raw:
-        for k in raw.split(","):
-            k = k.strip()
-            if k:
-                API_KEYS.add(k)
-    if not API_KEYS:
-        print("[app] WARNING: No API_KEYS configured. Any X-Api-Key header will be accepted. Set API_KEYS env var (comma-separated) to restrict access.")
-
-
-async def verify_api_key(x_api_key: str = Header(None)):
-    if not x_api_key:
-        raise HTTPException(status_code=401, detail="Missing API key. Send your key in the X-Api-Key header.")
-    if API_KEYS and x_api_key not in API_KEYS:
-        raise HTTPException(status_code=401, detail="Invalid API key.")
-    return x_api_key
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global worker_tasks
-    _load_api_keys()
     print("[app] Starting background workers...")
     worker_tasks = await start_workers()
     yield
@@ -61,7 +39,7 @@ async def root():
         "status": "running",
         "endpoints": {
             "POST /webhook": "Submit a new refund request",
-            "GET /jobs": "List your jobs",
+            "GET /jobs": "List all jobs",
             "GET /jobs/{job_id}": "Get job status and result",
             "GET /jobs/{job_id}/screenshots": "List screenshots for a job",
             "GET /jobs/{job_id}/screenshots/{filename}": "Download a screenshot",
@@ -70,14 +48,14 @@ async def root():
 
 
 @app.post("/webhook", response_model=JobResult)
-async def webhook_receive(payload: WebhookPayload, api_key: str = Depends(verify_api_key)):
-    job = await enqueue_job(payload, api_key=api_key)
+async def webhook_receive(payload: WebhookPayload):
+    job = await enqueue_job(payload)
     return job
 
 
 @app.get("/jobs")
-async def list_jobs(api_key: str = Depends(verify_api_key)):
-    jobs = job_store.list_by_api_key(api_key)
+async def list_jobs():
+    jobs = job_store.list_all()
     return {
         "total": len(jobs),
         "jobs": [
@@ -95,17 +73,17 @@ async def list_jobs(api_key: str = Depends(verify_api_key)):
 
 
 @app.get("/jobs/{job_id}", response_model=JobResult)
-async def get_job(job_id: str, api_key: str = Depends(verify_api_key)):
+async def get_job(job_id: str):
     job = job_store.get(job_id)
-    if not job or job.api_key != api_key:
+    if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
 
 
 @app.get("/jobs/{job_id}/screenshots")
-async def list_screenshots(job_id: str, api_key: str = Depends(verify_api_key)):
+async def list_screenshots(job_id: str):
     job = job_store.get(job_id)
-    if not job or job.api_key != api_key:
+    if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
     screenshots_dir = os.path.join("screenshots", job_id)
@@ -124,9 +102,9 @@ async def list_screenshots(job_id: str, api_key: str = Depends(verify_api_key)):
 
 
 @app.get("/jobs/{job_id}/screenshots/{filename}")
-async def get_screenshot(job_id: str, filename: str, api_key: str = Depends(verify_api_key)):
+async def get_screenshot(job_id: str, filename: str):
     job = job_store.get(job_id)
-    if not job or job.api_key != api_key:
+    if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
     filepath = os.path.join("screenshots", job_id, filename)

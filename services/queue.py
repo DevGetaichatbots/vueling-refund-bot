@@ -38,9 +38,6 @@ class JobStore:
     def list_all(self) -> list[JobResult]:
         return list(self._jobs.values())
 
-    def list_by_api_key(self, api_key: str) -> list[JobResult]:
-        return [j for j in self._jobs.values() if j.api_key == api_key]
-
 
 job_store = JobStore()
 job_queue: asyncio.Queue = asyncio.Queue()
@@ -48,8 +45,8 @@ job_queue: asyncio.Queue = asyncio.Queue()
 MAX_CONCURRENT_WORKERS = 2
 
 
-async def enqueue_job(payload: WebhookPayload, api_key: str = None) -> JobResult:
-    job = create_job(payload, api_key=api_key)
+async def enqueue_job(payload: WebhookPayload) -> JobResult:
+    job = create_job(payload)
     await job_store.add(job, payload)
     await job_queue.put(job.job_id)
     print(f"[queue] Job {job.job_id} queued for {payload.booking_code}")
