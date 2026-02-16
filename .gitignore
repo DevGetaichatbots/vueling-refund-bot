@@ -1,5 +1,6 @@
 # Cache directories (Playwright browsers, uv, etc.)
 .cache/
+.pythonlibs/
 screenshots/
 attached_assets/
 
