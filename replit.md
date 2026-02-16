@@ -44,8 +44,9 @@ A FastAPI-based SaaS application that automates Vueling airline refund chatbot r
   "first_name": "John",
   "surname": "Smith",
   "contact_email": "jamiesmith@gmail.com",
-  "phone_country": "+92",
-  "phone_number": "3176811061",
+  "phone_country_code": "ES",
+  "phone_prefix": "+34",
+  "phone_number": "612345678",
   "comment": "Medical emergency",
   "documents": [
     {"url": "https://example.com/cert.pdf", "filename": "cert.pdf"}
@@ -54,6 +55,10 @@ A FastAPI-based SaaS application that automates Vueling airline refund chatbot r
   "callback_url": "https://your-app.com/api/v1/claims/bot-status-update"
 }
 ```
+- `phone_country_code`: Country code (e.g. "ES", "US", "GB") - OPTIONAL
+- `phone_prefix`: International dialing prefix (e.g. "+34", "+1") - pre-parsed from frontend
+- `phone_number`: Digits only, no prefix (e.g. "612345678")
+- `phone_country`: DEPRECATED - old combined prefix field, still accepted for backward compatibility
 - `reason`: "ILL OR HAVING SURGERY", "PREGNANT", "COURT SUMMONS OR SERVICE AT POLLING STATION", or "SOMEONE'S DEATH"
 - `comment`: OPTIONAL - can be omitted or null
 - `claim_id`: OPTIONAL - your internal claim ID for status callbacks (falls back to job_id)
@@ -96,6 +101,7 @@ Steps in order: navigating_to_portal (5-15%) → entering_booking (20-25%) → s
 On error: `{"step": "error", "status": "error", "message": "...", "progress": <last_progress>}`
 
 ## Recent Changes
+- 2026-02-16: Updated phone number handling - now accepts pre-parsed fields (phone_country_code, phone_prefix, phone_number) from frontend. Bot uses exact prefix for dropdown selection, no more parsing/guessing. Old format (phone_country) still supported for backward compatibility.
 - 2026-02-16: Removed API key authentication per user request - endpoints are open
 - 2026-02-16: Added real-time status callback system - bot POSTs progress updates to callback_url at each step with claimId, step name, message, progress %, and status
 - 2026-02-13: Improved bot reliability - new smart waiting system that tracks chatbot message count before/after each action, waits for responses to stabilize before proceeding, and expects specific UI elements at each step (input fields, dropdowns, file upload). Increased timeouts (phone dropdown 5s→15s, step timeout 30s→45s). Bot now properly waits for chatbot response after every input before moving to next step.

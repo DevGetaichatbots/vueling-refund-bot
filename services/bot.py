@@ -46,7 +46,7 @@ class VuelingRefundBot:
         first_name=None,
         surname=None,
         contact_email=None,
-        phone_country=None,
+        phone_prefix=None,
         phone_number=None,
         comment=None,
         document_paths=None,
@@ -62,7 +62,7 @@ class VuelingRefundBot:
         self.first_name = first_name or ""
         self.surname = surname or ""
         self.contact_email = contact_email or ""
-        self.phone_country = phone_country or "+92"
+        self.phone_prefix = phone_prefix or "+92"
         self.phone_number = phone_number or ""
         self.comment = comment if comment else ""
         self.document_paths = document_paths or []
@@ -766,7 +766,7 @@ class VuelingRefundBot:
 
     # ── Step 10: Enter phone country + number → SEND ──
     async def step_fill_phone(self):
-        print(f"[Step 10] Filling phone: {self.phone_country} {self.phone_number}...")
+        print(f"[Step 10] Filling phone: {self.phone_prefix} {self.phone_number}...")
         ctx = await self._find_chatbot_frame()
         await self._random_delay()
 
@@ -785,16 +785,9 @@ class VuelingRefundBot:
             await self._wait_for_new_content(ctx, min_wait=3, max_wait=12)
         await self._screenshot("phone_step_ready")
 
+        raw_prefix = self.phone_prefix.lstrip("+")
         country_selected = False
-        matched_prefix = ""
-        raw_prefix = self.phone_country.lstrip("+")
-
-        prefixes_to_try = []
-        for length in range(1, len(raw_prefix) + 1):
-            candidate = raw_prefix[:length]
-            if candidate not in prefixes_to_try:
-                prefixes_to_try.append(candidate)
-        print(f"  [info] Will try prefixes: {['+' + p for p in prefixes_to_try]}")
+        print(f"  [info] Using exact prefix: +{raw_prefix}")
 
         try:
             native_select = ctx.locator("select:visible:not([disabled])").first
@@ -808,15 +801,11 @@ class VuelingRefundBot:
                 if opt_val and not await option.get_attribute("disabled"):
                     option_data.append((opt_text, opt_val))
 
-            for prefix in prefixes_to_try:
-                for opt_text, opt_val in option_data:
-                    if f"(+{prefix})" in opt_text or opt_val == f"+{prefix}" or opt_val == prefix:
-                        await native_select.select_option(value=opt_val)
-                        print(f"  [select] Country code (native): {opt_text.strip()} (matched +{prefix})")
-                        matched_prefix = prefix
-                        country_selected = True
-                        break
-                if country_selected:
+            for opt_text, opt_val in option_data:
+                if f"(+{raw_prefix})" in opt_text or opt_val == f"+{raw_prefix}" or opt_val == raw_prefix:
+                    await native_select.select_option(value=opt_val)
+                    print(f"  [select] Country prefix matched: {opt_text.strip()} (value={opt_val})")
+                    country_selected = True
                     break
         except Exception as e:
             print(f"  [info] Native select not found: {e}")
@@ -827,9 +816,8 @@ class VuelingRefundBot:
         await self._random_delay(0.5, 1)
         await self._screenshot("prefix_selected")
 
-        leftover = raw_prefix[len(matched_prefix):] if matched_prefix else ""
-        full_phone = leftover + self.phone_number
-        print(f"  [info] Matched prefix: +{matched_prefix}, leftover digits: '{leftover}', full phone: '{full_phone}'")
+        full_phone = self.phone_number
+        print(f"  [info] Phone number (digits only): '{full_phone}'")
 
         phone_filled = False
         phone_selectors = [
