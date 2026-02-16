@@ -419,8 +419,12 @@ class VuelingRefundBot:
         if not clicked:
             raise Exception("Could not find 'CODE AND EMAIL' option")
 
-        await self._wait_for_new_content(ctx, min_wait=2, max_wait=10, expect_selector="input:visible")
-        await self._random_delay()
+        try:
+            await ctx.locator("input:visible").first.wait_for(state="visible", timeout=5000)
+            print("  [wait] Input fields ready")
+        except Exception:
+            await asyncio.sleep(1)
+        await self._random_delay(0.3, 0.5)
 
     # ── Step 5: Fill booking code + email → SEND ──
     async def step_fill_booking(self):
@@ -534,22 +538,52 @@ class VuelingRefundBot:
                 await self._wait_for_new_content(ctx, min_wait=3, max_wait=15)
 
                 print("  [wait] Waiting for chatbot to finish all messages after reason selection...")
-                for extra_wait in range(20):
+                rejection_detected = False
+                for extra_wait in range(25):
                     await asyncio.sleep(1)
                     try:
                         page_text = await ctx.locator("body").text_content() or ""
-                        if "document" in page_text.lower() and ("yes" in page_text.lower() or "hand" in page_text.lower()):
+                        page_lower = page_text.lower()
+
+                        rejection_phrases = [
+                            "sorry",
+                            "cannot be processed",
+                            "can only be processed up to",
+                            "not eligible",
+                            "not possible",
+                            "unable to process",
+                            "30 days",
+                        ]
+                        for phrase in rejection_phrases:
+                            if phrase in page_lower and ("refund" in page_lower or "justified" in page_lower):
+                                rejection_msg = ""
+                                for line in page_text.split("\n"):
+                                    line_lower = line.strip().lower()
+                                    if any(p in line_lower for p in rejection_phrases):
+                                        rejection_msg = line.strip()
+                                        break
+                                if not rejection_msg:
+                                    rejection_msg = "Refund request was rejected by the airline"
+                                print(f"  [REJECTED] Chatbot rejected the request: {rejection_msg}")
+                                await self._screenshot("rejection_detected")
+                                raise Exception(f"REJECTED: {rejection_msg}")
+
+                        if "document" in page_lower and ("yes" in page_lower or "hand" in page_lower):
                             print("  [wait] Document/YES prompt detected in chatbot")
                             await asyncio.sleep(2)
                             break
-                    except Exception:
+                    except Exception as e:
+                        if "REJECTED" in str(e):
+                            raise
                         pass
                 else:
                     print("  [wait] Document prompt not detected after extra wait, proceeding")
 
                 await self._random_delay()
                 return
-            except Exception:
+            except Exception as e:
+                if "REJECTED" in str(e):
+                    raise
                 continue
         raise Exception(f"Could not find reason: '{self.reason}'")
 
