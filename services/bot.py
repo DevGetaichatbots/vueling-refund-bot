@@ -407,21 +407,20 @@ class VuelingRefundBot:
         print("[Step 4] Selecting 'CODE AND EMAIL'...")
         ctx = await self._find_chatbot_frame()
 
+        clicked = False
         for text in ["CODE AND EMAIL", "Code and email", "code and email", "code"]:
             try:
                 await self._click_text(ctx, text)
                 await self._screenshot("code_email_selected")
+                clicked = True
                 break
             except Exception:
                 continue
-        else:
+        if not clicked:
             raise Exception("Could not find 'CODE AND EMAIL' option")
 
-        try:
-            await ctx.locator("input:visible").first.wait_for(state="visible", timeout=10000)
-            print("  [wait] Input fields appeared")
-        except Exception:
-            await asyncio.sleep(2)
+        await self._wait_for_new_content(ctx, min_wait=2, max_wait=10, expect_selector="input:visible")
+        await self._random_delay()
 
     # ── Step 5: Fill booking code + email → SEND ──
     async def step_fill_booking(self):
@@ -481,6 +480,9 @@ class VuelingRefundBot:
                     break
                 except Exception:
                     continue
+
+        if not send_clicked:
+            raise Exception("Could not click SEND button for booking details")
 
         await self._screenshot("send_clicked")
         print("  Waiting for booking verification and reason options...")
@@ -691,11 +693,13 @@ class VuelingRefundBot:
                     print("  [click] Pressed Enter on last input")
                     send_clicked = True
                 except Exception:
-                    print("  [error] Could not submit name form at all")
+                    raise Exception("Could not submit name form - no SEND button or Enter key worked")
+
+        await self._wait_for_new_content(ctx, min_wait=2, max_wait=20, expect_selector=None)
 
         print("  [wait] Waiting for chatbot to ask for email...")
         email_prompt_found = False
-        for attempt in range(30):
+        for attempt in range(25):
             await asyncio.sleep(1)
             try:
                 page_text = await ctx.locator("body").text_content() or ""
@@ -707,10 +711,8 @@ class VuelingRefundBot:
             except Exception:
                 pass
         if not email_prompt_found:
-            print("  [wait] Email prompt not detected after 30s, proceeding anyway")
-            await asyncio.sleep(2)
-        else:
-            await asyncio.sleep(1)
+            print("  [wait] Email prompt not detected after 25s, proceeding anyway")
+        await asyncio.sleep(1)
 
         await self._screenshot("name_sent")
 
@@ -748,9 +750,11 @@ class VuelingRefundBot:
         await self._type_in_chat(ctx, self.contact_email)
         await self._screenshot("contact_email_sent")
 
+        await self._wait_for_new_content(ctx, min_wait=2, max_wait=15, expect_selector="select:visible, input[type='tel']:visible")
+
         print("  [wait] Waiting for phone form to appear...")
         phone_form_found = False
-        for attempt in range(30):
+        for attempt in range(20):
             await asyncio.sleep(1)
             try:
                 page_text = await ctx.locator("body").text_content() or ""
@@ -889,11 +893,13 @@ class VuelingRefundBot:
                     continue
 
         if not send_clicked:
-            print("  [warn] Phone SEND not found")
+            raise Exception("Could not click SEND button for phone number")
+
+        await self._wait_for_new_content(ctx, min_wait=2, max_wait=15, expect_selector='button:has-text("SUBMIT"), textarea:visible')
 
         print("  [wait] Waiting for comment/submit prompt...")
         comment_prompt_found = False
-        for attempt in range(20):
+        for attempt in range(15):
             await asyncio.sleep(1)
             try:
                 page_text = await ctx.locator("body").text_content() or ""
@@ -904,7 +910,7 @@ class VuelingRefundBot:
             except Exception:
                 pass
         if not comment_prompt_found:
-            print("  [wait] Comment prompt not detected after 20s, proceeding anyway")
+            print("  [wait] Comment prompt not detected after 15s, proceeding anyway")
         await asyncio.sleep(0.5)
         await self._screenshot("phone_sent")
 
@@ -986,9 +992,9 @@ class VuelingRefundBot:
                     continue
 
         if not clicked:
-            print("  [error] Could not click SUBMIT QUERY")
+            raise Exception("Could not click SUBMIT QUERY button")
 
-        await self._wait_for_new_content(ctx, min_wait=3, max_wait=12, expect_selector="input[type='file'], button:has-text('Select')")
+        await self._wait_for_new_content(ctx, min_wait=3, max_wait=15, expect_selector="input[type='file'], button:has-text('Select')")
         await self._random_delay(1, 2)
         await self._screenshot("comment_submitted")
 
