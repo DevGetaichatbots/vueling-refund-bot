@@ -29,7 +29,8 @@ class WebhookPayload(BaseModel):
     phone_number: str = Field(..., description="Contact phone number without country code")
     comment: Optional[str] = Field(default=None, description="Optional additional comment about the case. If not provided, bot just clicks Submit Query.")
     documents: list[DocumentInput] = Field(default_factory=list, description="List of documents (base64 or URL)")
-    webhook_callback_url: Optional[str] = Field(default=None, description="Optional URL to POST results back to when job completes")
+    claim_id: Optional[str] = Field(default=None, description="Your internal claim/case ID for status callbacks")
+    callback_url: Optional[str] = Field(default=None, description="URL to POST real-time step progress updates to (e.g. https://your-app.com/api/v1/claims/bot-status-update)")
 
 
 class JobStatus(str, Enum):
