@@ -40,18 +40,24 @@ A FastAPI-based SaaS application that automates Vueling airline refund chatbot r
 {
   "booking_code": "CJ6PKJ",
   "booking_email": "jimaesmith9871@gmail.com",
-  "reason": "ILL OR HAVING SURGERY",  // or "PREGNANT", "COURT SUMMONS OR SERVICE AT POLLING STATION", "SOMEONE'S DEATH"
+  "reason": "ILL OR HAVING SURGERY",
   "first_name": "John",
   "surname": "Smith",
   "contact_email": "jamiesmith@gmail.com",
   "phone_country": "+92",
   "phone_number": "3176811061",
-  "comment": "Medical emergency",  // OPTIONAL - can be omitted or null
+  "comment": "Medical emergency",
   "documents": [
     {"url": "https://example.com/cert.pdf", "filename": "cert.pdf"}
-  ]
+  ],
+  "claim_id": "your-internal-claim-id",
+  "callback_url": "https://your-app.com/api/v1/claims/bot-status-update"
 }
 ```
+- `reason`: "ILL OR HAVING SURGERY", "PREGNANT", "COURT SUMMONS OR SERVICE AT POLLING STATION", or "SOMEONE'S DEATH"
+- `comment`: OPTIONAL - can be omitted or null
+- `claim_id`: OPTIONAL - your internal claim ID for status callbacks (falls back to job_id)
+- `callback_url`: OPTIONAL - URL to receive real-time step progress POST updates
 
 ## Bot Flow (14 Steps)
 1. Launch Chromium browser with stealth
@@ -81,7 +87,16 @@ A FastAPI-based SaaS application that automates Vueling airline refund chatbot r
 - Refund reasons supported: "ILL OR HAVING SURGERY", "PREGNANT", "COURT SUMMONS OR SERVICE AT POLLING STATION", "SOMEONE'S DEATH"
 - Comment field is optional - bot clicks Submit Query regardless
 
+## Callback Status Updates
+When `callback_url` is provided in the webhook, the bot POSTs progress updates at each step:
+```json
+{"claimId": "...", "step": "navigating_to_portal", "message": "Opening airline refund portal", "progress": 10, "status": "in_progress"}
+```
+Steps in order: navigating_to_portal (5-15%) → entering_booking (20-25%) → selecting_refund_type (30%) → filling_passenger (35-50%) → submitting_claim (60%) → uploading_documents (70%) → submitting_claim (85%) → completed (100%)
+On error: `{"step": "error", "status": "error", "message": "...", "progress": <last_progress>}`
+
 ## Recent Changes
+- 2026-02-16: Added real-time status callback system - bot POSTs progress updates to callback_url at each step with claimId, step name, message, progress %, and status
 - 2026-02-13: Improved bot reliability - new smart waiting system that tracks chatbot message count before/after each action, waits for responses to stabilize before proceeding, and expects specific UI elements at each step (input fields, dropdowns, file upload). Increased timeouts (phone dropdown 5s→15s, step timeout 30s→45s). Bot now properly waits for chatbot response after every input before moving to next step.
 - 2026-02-13: Added all 4 refund reasons, document upload confirmation ("Yes, continue"), improved case/reference number extraction
 - 2026-02-13: Added PREGNANT reason, made comment optional, fixed phone country dropdown selection, improved file upload with "Select them" button

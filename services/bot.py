@@ -6,10 +6,28 @@ import shutil
 import traceback
 from pathlib import Path
 
+import aiohttp
 from playwright.async_api import async_playwright, Page, Frame
 from playwright_stealth import Stealth
 
 import config
+
+STEP_CALLBACK_MAP = {
+    "Launch Browser": ("navigating_to_portal", "Opening airline refund portal", 5),
+    "Navigate": ("navigating_to_portal", "Opening airline refund portal", 10),
+    "Wait for Chatbot": ("navigating_to_portal", "Connecting to refund system", 15),
+    "Select CODE AND EMAIL": ("entering_booking", "Preparing booking lookup", 20),
+    "Fill Booking Details": ("entering_booking", "Entering booking reference", 25),
+    "Select Reason": ("selecting_refund_type", "Selecting refund type", 30),
+    "Confirm Documents": ("filling_passenger", "Confirming document readiness", 35),
+    "Fill Name": ("filling_passenger", "Filling passenger details", 40),
+    "Contact Email": ("filling_passenger", "Submitting contact information", 45),
+    "Fill Phone": ("filling_passenger", "Entering phone number", 50),
+    "Submit Comment": ("submitting_claim", "Submitting additional details", 60),
+    "Upload Documents": ("uploading_documents", "Uploading supporting documents", 70),
+    "Get Confirmation": ("submitting_claim", "Submitting refund request", 85),
+    "Decline Another": ("completed", "Refund claim submitted successfully", 100),
+}
 
 
 class BotStepError(Exception):
@@ -35,6 +53,8 @@ class VuelingRefundBot:
         headless=None,
         job_id=None,
         on_progress=None,
+        callback_url=None,
+        claim_id=None,
     ):
         self.booking_code = booking_code or config.BOOKING_CODE
         self.email = email or config.EMAIL
@@ -49,6 +69,8 @@ class VuelingRefundBot:
         self.headless = headless if headless is not None else config.HEADLESS
         self.job_id = job_id or "manual"
         self.on_progress = on_progress
+        self.callback_url = callback_url
+        self.claim_id = claim_id
         self.browser = None
         self.page = None
         self.step_count = 0
@@ -58,6 +80,34 @@ class VuelingRefundBot:
 
         self.screenshots_dir = os.path.join(config.SCREENSHOTS_DIR, self.job_id)
         os.makedirs(self.screenshots_dir, exist_ok=True)
+
+    async def _send_status_callback(self, step_name, status="in_progress", error_message=None):
+        if not self.callback_url:
+            return
+
+        mapping = STEP_CALLBACK_MAP.get(step_name)
+        if not mapping:
+            return
+
+        step_key, default_message, progress = mapping
+        payload = {
+            "claimId": self.claim_id or self.job_id,
+            "step": "error" if status == "error" else step_key,
+            "message": error_message if error_message else default_message,
+            "progress": progress,
+            "status": status,
+        }
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    self.callback_url,
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=10),
+                ) as resp:
+                    print(f"  [callback] Sent {step_key} ({progress}%) -> {resp.status}")
+        except Exception as e:
+            print(f"  [callback] Failed to send status update: {e}")
 
     def _notify_progress(self):
         if self.on_progress:
@@ -254,6 +304,8 @@ class VuelingRefundBot:
                 result = await step_func(*args, **kwargs)
                 self.completed_steps.append(step_name)
                 self._notify_progress()
+                final_status = "completed" if step_name == "Decline Another" else "in_progress"
+                await self._send_status_callback(step_name, status=final_status)
                 return result
             except Exception as e:
                 error_msg = f"Step '{step_name}' attempt {attempt}/{retries} failed: {e}"
@@ -265,6 +317,7 @@ class VuelingRefundBot:
                     screenshot_path = await self._screenshot(f"error_{step_name.replace(' ', '_').lower()}")
                     self.errors.append({"step": step_name, "error": str(e), "screenshot": screenshot_path})
                     self._notify_progress()
+                    await self._send_status_callback(step_name, status="error", error_message=str(e))
                     raise BotStepError(step_name, str(e), screenshot_path)
 
     # ── Step 1: Launch browser ──

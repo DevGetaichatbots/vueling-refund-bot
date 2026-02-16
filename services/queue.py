@@ -93,6 +93,8 @@ async def process_job(job_id: str):
             headless=True,
             job_id=job_id,
             on_progress=on_progress,
+            callback_url=payload.callback_url,
+            claim_id=payload.claim_id,
         )
 
         result = await bot.run()
