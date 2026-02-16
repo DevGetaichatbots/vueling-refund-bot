@@ -1,3 +1,8 @@
+# Cache directories (Playwright browsers, uv, etc.)
+.cache/
+screenshots/
+attached_assets/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
