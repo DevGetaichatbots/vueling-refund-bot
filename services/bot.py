@@ -531,7 +531,22 @@ class VuelingRefundBot:
             try:
                 await self._click_text(ctx, text)
                 await self._screenshot("reason_selected")
-                await self._wait_for_new_content(ctx)
+                await self._wait_for_new_content(ctx, min_wait=3, max_wait=15)
+
+                print("  [wait] Waiting for chatbot to finish all messages after reason selection...")
+                for extra_wait in range(20):
+                    await asyncio.sleep(1)
+                    try:
+                        page_text = await ctx.locator("body").text_content() or ""
+                        if "document" in page_text.lower() and ("yes" in page_text.lower() or "hand" in page_text.lower()):
+                            print("  [wait] Document/YES prompt detected in chatbot")
+                            await asyncio.sleep(2)
+                            break
+                    except Exception:
+                        pass
+                else:
+                    print("  [wait] Document prompt not detected after extra wait, proceeding")
+
                 await self._random_delay()
                 return
             except Exception:
@@ -545,23 +560,86 @@ class VuelingRefundBot:
         await self._random_delay()
 
         try:
-            yes_btn = ctx.locator('button:has-text("YES"), button:has-text("Yes")').first
-            await yes_btn.wait_for(state="visible", timeout=15000)
-            print("  [wait] YES/NO buttons are ready")
+            await ctx.evaluate("window.scrollTo(0, document.body.scrollHeight)")
         except Exception:
-            print("  [wait] YES button not found, waiting for chatbot...")
-            await self._wait_for_new_content(ctx, min_wait=2, max_wait=8)
+            pass
 
-        for text in ["YES", "Yes", "yes"]:
+        yes_selectors = [
+            'button:has-text("YES")',
+            'button:has-text("Yes")',
+            'div[role="button"]:has-text("YES")',
+            'div[role="button"]:has-text("Yes")',
+            'span:has-text("YES")',
+            '[class*="button"]:has-text("YES")',
+            '[class*="button"]:has-text("Yes")',
+        ]
+
+        yes_btn = None
+        for attempt in range(30):
             try:
-                await self._click_text(ctx, text)
-                await self._screenshot("documents_confirmed")
-                await self._wait_for_new_content(ctx)
-                await self._random_delay()
-                return
+                await ctx.evaluate("window.scrollTo(0, document.body.scrollHeight)")
             except Exception:
-                continue
-        raise Exception("Could not find YES button")
+                pass
+
+            for sel in yes_selectors:
+                try:
+                    el = ctx.locator(sel).first
+                    if await el.is_visible(timeout=500):
+                        yes_btn = el
+                        print(f"  [wait] YES button found via {sel} (attempt {attempt+1})")
+                        break
+                except Exception:
+                    continue
+            if yes_btn:
+                break
+
+            try:
+                el = ctx.get_by_text("YES", exact=True).first
+                if await el.is_visible(timeout=500):
+                    yes_btn = el
+                    print(f"  [wait] YES button found via get_by_text (attempt {attempt+1})")
+                    break
+            except Exception:
+                pass
+
+            if attempt % 5 == 4:
+                print(f"  [wait] Still looking for YES button... (attempt {attempt+1}/30)")
+            await asyncio.sleep(1)
+
+        if not yes_btn:
+            print("  [warn] YES button not found after 30s polling, trying text-based fallback...")
+            await self._screenshot("yes_button_not_found")
+            for text in ["YES", "Yes"]:
+                try:
+                    await self._click_text(ctx, text, timeout=10000)
+                    print(f"  [click] YES clicked via _click_text fallback")
+                    await self._screenshot("documents_confirmed")
+                    await self._wait_for_new_content(ctx, min_wait=2, max_wait=10, expect_selector="input:visible")
+                    await self._random_delay()
+                    return
+                except Exception:
+                    continue
+            raise Exception("Could not find YES button after extensive search")
+
+        try:
+            await yes_btn.scroll_into_view_if_needed()
+            await asyncio.sleep(0.5)
+        except Exception:
+            pass
+
+        try:
+            await yes_btn.click()
+            print("  [click] YES clicked")
+        except Exception:
+            try:
+                await yes_btn.click(force=True)
+                print("  [click] YES force-clicked")
+            except Exception:
+                raise Exception("YES button found but could not click it")
+
+        await self._screenshot("documents_confirmed")
+        await self._wait_for_new_content(ctx, min_wait=2, max_wait=10, expect_selector="input:visible")
+        await self._random_delay()
 
     # ── Step 8: Enter first name + surname → SEND ──
     async def step_fill_name(self):

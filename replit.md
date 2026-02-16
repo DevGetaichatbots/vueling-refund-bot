@@ -101,6 +101,8 @@ Steps in order: navigating_to_portal (5-15%) → entering_booking (20-25%) → s
 On error: `{"step": "error", "status": "error", "message": "...", "progress": <last_progress>}`
 
 ## Recent Changes
+- 2026-02-16: Fixed Step 7 (YES button) - chatbot sends 6+ messages after reason selection before showing YES/NO buttons. Added extended wait in Step 6 to detect document prompt text before proceeding. Rewrote Step 7 with 30s polling loop, scrolling to bottom, multiple selectors (button, div[role=button], span, class*=button), scrollIntoView, force-click fallback. All SEND/SUBMIT buttons now raise exceptions on failure to trigger retries instead of silently continuing.
+- 2026-02-16: Fixed deployment timeout - lazy import of playwright (133MB) so app starts in <1s and passes health check. Cleaned cache/attached_assets to reduce bundle size.
 - 2026-02-16: Updated phone number handling - now accepts pre-parsed fields (phone_country_code, phone_prefix, phone_number) from frontend. Bot uses exact prefix for dropdown selection, no more parsing/guessing. Old format (phone_country) still supported for backward compatibility.
 - 2026-02-16: Removed API key authentication per user request - endpoints are open
 - 2026-02-16: Added real-time status callback system - bot POSTs progress updates to callback_url at each step with claimId, step name, message, progress %, and status
