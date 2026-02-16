@@ -12,9 +12,9 @@ language = "python3"
 requiredFiles = [".replit", "replit.nix"]
 
 [deployment]
-run = ["python", "main.py"]
-deploymentTarget = "vm"
+deploymentTarget = "autoscale"
 build = ["bash", "-c", "pip install -r requirements.txt"]
+run = ["python", "main.py"]
 
 [agent]
 expertMode = true
