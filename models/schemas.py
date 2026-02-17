@@ -95,6 +95,7 @@ class JobStatus(str, Enum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+    REJECTED = "rejected"
 
 
 class JobResult(BaseModel):
@@ -109,6 +110,8 @@ class JobResult(BaseModel):
     claim_id: Optional[str] = None
     completed_steps: list[str] = Field(default_factory=list)
     case_number: Optional[str] = None
+    rejected: bool = False
+    rejection_reason: Optional[str] = None
     errors: list[dict] = Field(default_factory=list)
     screenshots: list[str] = Field(default_factory=list)
 

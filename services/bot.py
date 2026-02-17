@@ -37,6 +37,13 @@ class BotStepError(Exception):
         super().__init__(f"[{step_name}] {message}")
 
 
+class BotRejectedError(Exception):
+    def __init__(self, reason, screenshot_path=None):
+        self.reason = reason
+        self.screenshot_path = screenshot_path
+        super().__init__(f"REJECTED: {reason}")
+
+
 class VuelingRefundBot:
     def __init__(
         self,
@@ -309,6 +316,8 @@ class VuelingRefundBot:
                 final_status = "completed" if step_name == "Decline Another" else "in_progress"
                 await self._send_status_callback(step_name, status=final_status)
                 return result
+            except BotRejectedError:
+                raise
             except Exception as e:
                 error_msg = f"Step '{step_name}' attempt {attempt}/{retries} failed: {e}"
                 print(f"  [error] {error_msg}")
@@ -566,25 +575,25 @@ class VuelingRefundBot:
                                 if not rejection_msg:
                                     rejection_msg = "Refund request was rejected by the airline"
                                 print(f"  [REJECTED] Chatbot rejected the request: {rejection_msg}")
-                                await self._screenshot("rejection_detected")
-                                raise Exception(f"REJECTED: {rejection_msg}")
+                                screenshot_path = await self._screenshot("rejection_detected")
+                                raise BotRejectedError(rejection_msg, screenshot_path)
 
                         if "document" in page_lower and ("yes" in page_lower or "hand" in page_lower):
                             print("  [wait] Document/YES prompt detected in chatbot")
                             await asyncio.sleep(2)
                             break
-                    except Exception as e:
-                        if "REJECTED" in str(e):
-                            raise
+                    except BotRejectedError:
+                        raise
+                    except Exception:
                         pass
                 else:
                     print("  [wait] Document prompt not detected after extra wait, proceeding")
 
                 await self._random_delay()
                 return
-            except Exception as e:
-                if "REJECTED" in str(e):
-                    raise
+            except BotRejectedError:
+                raise
+            except Exception:
                 continue
         raise Exception(f"Could not find reason: '{self.reason}'")
 
@@ -1298,6 +1307,8 @@ class VuelingRefundBot:
             "success": False,
             "completed_steps": [],
             "case_number": None,
+            "rejected": False,
+            "rejection_reason": None,
             "errors": [],
             "screenshots": [],
         }
@@ -1325,6 +1336,16 @@ class VuelingRefundBot:
             print(f"Bot completed all steps! Case: {self.case_number or 'unknown'}")
             print(f"Steps: {', '.join(self.completed_steps)}")
             print("=" * 60)
+
+        except BotRejectedError as e:
+            print(f"\n[REJECTED] {e.reason}")
+            print(f"  Completed before rejection: {', '.join(self.completed_steps)}")
+            result["rejected"] = True
+            result["rejection_reason"] = e.reason
+            result["errors"] = [{"step": "Select Reason", "error": e.reason, "type": "rejected"}]
+            await self._send_status_callback(
+                "Select Reason", status="rejected", error_message=e.reason
+            )
 
         except BotStepError as e:
             print(f"\n[ERROR] {e}")

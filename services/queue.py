@@ -104,18 +104,26 @@ async def process_job(job_id: str):
 
         result = await bot.run()
 
+        if result.get("rejected"):
+            final_status = JobStatus.REJECTED
+        elif result["success"]:
+            final_status = JobStatus.COMPLETED
+        else:
+            final_status = JobStatus.FAILED
+
         await job_store.update(
             job_id,
-            status=JobStatus.COMPLETED if result["success"] else JobStatus.FAILED,
+            status=final_status,
             completed_at=time.time(),
             completed_steps=result.get("completed_steps", []),
             case_number=result.get("case_number"),
+            rejected=result.get("rejected", False),
+            rejection_reason=result.get("rejection_reason"),
             errors=result.get("errors", []),
             screenshots=result.get("screenshots", []),
         )
 
-        status = "completed" if result["success"] else "failed"
-        print(f"[worker] Job {job_id} {status}")
+        print(f"[worker] Job {job_id} {final_status.value}")
 
     except Exception as e:
         print(f"[worker] Job {job_id} crashed: {e}")
