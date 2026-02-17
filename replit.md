@@ -102,12 +102,12 @@ On error: `{"step": "error", "status": "error", "message": "...", "progress": <l
 
 ## Deployment
 - Type: Reserved VM (0.5 vCPU / 2 GiB RAM)
-- Build: `pip install -r requirements.txt` (Python packages only, ~164MB)
-- Run: `bash start.sh` (installs Playwright browser on first startup, then starts server)
+- Build: `pip install -r requirements.txt && rm -f .pythonlibs/.../playwright/driver/node` (removes 116MB node binary from bundle)
+- Run: `bash start.sh` (restores node driver + installs Playwright browser on first startup, then starts server)
 - Browsers stored at `/tmp/pw-browsers/` via PLAYWRIGHT_BROWSERS_PATH env var (outside workspace, NOT bundled)
-- Total workspace bundle: ~182MB (vs 440MB+ with browsers bundled)
-- First deploy startup: ~30-60s extra to download headless shell (~111MB)
-- Subsequent restarts: instant (browser already in /tmp on VM)
+- Total deploy bundle: ~62MB (vs 440MB+ with browsers + node bundled)
+- First deploy startup: ~30-60s extra to download Node.js driver + headless shell
+- Subsequent restarts: instant (driver + browser already in place on VM)
 
 ## Recent Changes
 - 2026-02-17: Fixed deployment timeout - moved Playwright browser install from build to runtime startup via start.sh. Set PLAYWRIGHT_BROWSERS_PATH=/tmp/pw-browsers to store browsers outside workspace (not bundled). Reduced bundle from 440MB to 182MB. Added --single-process and --disable-setuid-sandbox launch flags.

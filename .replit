@@ -13,7 +13,7 @@ requiredFiles = [".replit", "replit.nix"]
 
 [deployment]
 deploymentTarget = "vm"
-build = ["pip", "install", "-r", "requirements.txt"]
+build = ["bash", "-c", "pip install -r requirements.txt && rm -f .pythonlibs/lib/python3.11/site-packages/playwright/driver/node"]
 run = ["bash", "start.sh"]
 
 [agent]
