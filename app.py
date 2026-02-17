@@ -16,8 +16,11 @@ worker_tasks = []
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global worker_tasks
-    print("[app] Starting background workers...")
-    worker_tasks = await start_workers()
+    try:
+        print("[app] Starting background workers...")
+        worker_tasks = await start_workers()
+    except Exception as e:
+        print(f"[app] Warning: Failed to start workers: {e}")
     yield
     print("[app] Shutting down workers...")
     for task in worker_tasks:
