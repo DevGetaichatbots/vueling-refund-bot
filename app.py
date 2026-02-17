@@ -6,8 +6,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
-from models.schemas import WebhookPayload, JobResult, JobStatus, VerifyPayload, VerifyResult
-from services.queue import enqueue_job, job_store, start_workers, enqueue_verify, verify_store
+from models.schemas import WebhookPayload, JobResult, JobStatus, VerifyPayload
+from services.queue import enqueue_job, job_store, start_workers
 
 
 worker_tasks = []
@@ -51,10 +51,9 @@ async def root():
         "status": "running",
         "endpoints": {
             "POST /webhook": "Submit a new refund request",
-            "POST /verify": "Verify a booking exists",
+            "POST /verify": "Verify a booking exists (synchronous)",
             "GET /jobs": "List all refund jobs",
             "GET /jobs/{job_id}": "Get refund job status and result",
-            "GET /verify/{job_id}": "Get booking verification result",
         },
     }
 
@@ -126,18 +125,38 @@ async def get_screenshot(job_id: str, filename: str):
     return FileResponse(filepath, media_type="image/png")
 
 
-@app.post("/verify", response_model=VerifyResult)
+@app.post("/verify")
 async def verify_booking(payload: VerifyPayload):
-    job = await enqueue_verify(payload)
-    return job
+    from utils.browser_env import setup_browser_env
+    setup_browser_env()
+    from services.verify_bot import BookingVerifyBot
 
+    bot = BookingVerifyBot(
+        booking_code=payload.booking_code,
+        email=payload.booking_email,
+        callback_url=payload.callback_url,
+        claim_id=payload.claim_id,
+    )
+    result = await bot.run()
 
-@app.get("/verify/{job_id}", response_model=VerifyResult)
-async def get_verify(job_id: str):
-    job = verify_store.get(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Verification job not found")
-    return job
+    if result["verified"]:
+        return JSONResponse(status_code=200, content={
+            "verified": True,
+            "booking_code": payload.booking_code,
+            "booking_details": result["booking_details"],
+        })
+    elif result.get("error") and not result.get("success"):
+        return JSONResponse(status_code=500, content={
+            "verified": False,
+            "booking_code": payload.booking_code,
+            "error": result["error"],
+        })
+    else:
+        return JSONResponse(status_code=200, content={
+            "verified": False,
+            "booking_code": payload.booking_code,
+            "error": result.get("error", "Booking not found or invalid credentials"),
+        })
 
 
 @app.get("/health")

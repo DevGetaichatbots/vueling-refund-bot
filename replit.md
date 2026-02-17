@@ -35,8 +35,7 @@ A FastAPI-based SaaS application that automates Vueling airline refund chatbot r
 - `GET /jobs/{job_id}` - Get job status, completed steps, case number
 - `GET /jobs/{job_id}/screenshots` - List screenshots for a job
 - `GET /jobs/{job_id}/screenshots/{filename}` - Download a screenshot
-- `POST /verify` - Submit booking verification request (returns job_id)
-- `GET /verify/{job_id}` - Get verification result (verified, booking_details)
+- `POST /verify` - Verify booking exists (synchronous, returns result directly)
 - `GET /health` - Health check
 
 ## Webhook Payload
@@ -113,8 +112,10 @@ On error: `{"step": "error", "status": "error", "message": "...", "progress": <l
 - First deploy startup: ~30-60s extra to download Node.js driver + headless shell
 - Subsequent restarts: instant (driver + browser already in place on VM)
 
-## Booking Verification
-`POST /verify` accepts:
+## Booking Verification (Synchronous)
+`POST /verify` - waits for result and returns directly (no job queue, ~20s response time).
+
+Request:
 ```json
 {
   "booking_code": "CJ6PKJ",
@@ -123,10 +124,11 @@ On error: `{"step": "error", "status": "error", "message": "...", "progress": <l
   "callback_url": "https://your-app.com/api/v1/claims/verify-callback"
 }
 ```
-Response from `GET /verify/{job_id}`:
+Response (200):
 ```json
 {
   "verified": true,
+  "booking_code": "CJ6PKJ",
   "booking_details": {
     "booking_code": "CJ6PKJ",
     "exists": true,
@@ -149,10 +151,10 @@ Response from `GET /verify/{job_id}`:
   }
 }
 ```
+If not found: `{"verified": false, "booking_code": "...", "error": "Booking not found or invalid credentials"}`
 - Bot navigates to Vueling booking retrieval page, fills code + email, clicks Go
 - Extracts all flight segments (outbound + return), cities, airports, terminals, times, flight numbers
 - Sends callback with verification result when `callback_url` provided
-- Uses separate queue worker (1 concurrent) independent from refund queue
 
 ## Recent Changes
 - 2026-02-17: Added booking verification bot (POST /verify) - navigates to Vueling booking retrieval page, fills code + email, extracts full flight details (cities, airports, terminals, times, flight numbers, passengers). Supports multiple flight segments (outbound + return). Uses correct page selectors (CONFIRMATIONNUMBER, CONTACTEMAIL, LinkButtonRetrieve, flightDetailsBox CSS classes).
