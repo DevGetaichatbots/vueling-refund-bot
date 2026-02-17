@@ -59,6 +59,37 @@ class WebhookPayload(BaseModel):
         return number.lstrip("0").strip() if number else number
 
 
+class VerifyPayload(BaseModel):
+    booking_code: str = Field(..., description="Vueling booking confirmation code")
+    booking_email: str = Field(..., description="Email used to make the booking")
+    claim_id: Optional[str] = Field(default=None, description="Your internal claim/case ID for callbacks")
+    callback_url: Optional[str] = Field(default=None, description="URL to POST verification result to")
+
+
+class VerifyResult(BaseModel):
+    job_id: str
+    status: str
+    created_at: float
+    completed_at: Optional[float] = None
+    booking_code: str
+    booking_email: str
+    claim_id: Optional[str] = None
+    verified: Optional[bool] = None
+    booking_details: Optional[dict] = None
+    error: Optional[str] = None
+
+
+def create_verify_job(payload: VerifyPayload) -> VerifyResult:
+    return VerifyResult(
+        job_id=str(uuid.uuid4()),
+        status="queued",
+        created_at=time.time(),
+        booking_code=payload.booking_code,
+        booking_email=payload.booking_email,
+        claim_id=payload.claim_id,
+    )
+
+
 class JobStatus(str, Enum):
     QUEUED = "queued"
     RUNNING = "running"
