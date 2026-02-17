@@ -336,7 +336,6 @@ class VuelingRefundBot:
                 "--disable-blink-features=AutomationControlled",
                 "--disable-dev-shm-usage",
                 "--disable-gpu",
-                "--single-process",
             ],
         )
         chromium_path = shutil.which("chromium") or shutil.which("chromium-browser")

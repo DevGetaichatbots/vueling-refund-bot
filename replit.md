@@ -1,7 +1,7 @@
 # Vueling Refund Bot - SaaS API
 
 ## Overview
-A FastAPI-based SaaS application that automates Vueling airline refund chatbot requests. External systems send refund requests via webhook, and background workers process them using Playwright browser automation with stealth detection.
+A FastAPI-based SaaS application that automates Vueling airline refund chatbot requests and booking verification. External systems send refund requests via webhook, and background workers process them using Playwright browser automation with stealth detection. A separate booking verification endpoint checks if tickets exist and extracts flight details.
 
 ## Tech Stack
 - Python 3.11
@@ -20,9 +20,11 @@ A FastAPI-based SaaS application that automates Vueling airline refund chatbot r
 │   └── schemas.py          # Pydantic models (WebhookPayload, JobResult)
 ├── services/
 │   ├── bot.py              # VuelingRefundBot class (14-step chatbot flow)
-│   └── queue.py            # Async job queue + worker pool
+│   ├── verify_bot.py       # BookingVerifyBot class (booking verification)
+│   └── queue.py            # Async job queue + worker pool (refund + verify)
 ├── utils/
-│   └── downloads.py        # File download + temp storage management
+│   ├── downloads.py        # File download + temp storage management
+│   └── browser_env.py      # Dynamic library path setup for Playwright
 ├── screenshots/            # Per-job screenshot folders
 └── pyproject.toml          # Python dependencies
 ```
@@ -33,6 +35,8 @@ A FastAPI-based SaaS application that automates Vueling airline refund chatbot r
 - `GET /jobs/{job_id}` - Get job status, completed steps, case number
 - `GET /jobs/{job_id}/screenshots` - List screenshots for a job
 - `GET /jobs/{job_id}/screenshots/{filename}` - Download a screenshot
+- `POST /verify` - Submit booking verification request (returns job_id)
+- `GET /verify/{job_id}` - Get verification result (verified, booking_details)
 - `GET /health` - Health check
 
 ## Webhook Payload
@@ -109,7 +113,49 @@ On error: `{"step": "error", "status": "error", "message": "...", "progress": <l
 - First deploy startup: ~30-60s extra to download Node.js driver + headless shell
 - Subsequent restarts: instant (driver + browser already in place on VM)
 
+## Booking Verification
+`POST /verify` accepts:
+```json
+{
+  "booking_code": "CJ6PKJ",
+  "booking_email": "jimaesmith9871@gmail.com",
+  "claim_id": "optional-internal-id",
+  "callback_url": "https://your-app.com/api/v1/claims/verify-callback"
+}
+```
+Response from `GET /verify/{job_id}`:
+```json
+{
+  "verified": true,
+  "booking_details": {
+    "booking_code": "CJ6PKJ",
+    "exists": true,
+    "flights": [
+      {
+        "flight_date": "28.01.2026",
+        "direction": "outbound",
+        "origin_city": "Barcelona",
+        "destination_city": "Lisbon",
+        "origin": "BCN",
+        "destination": "LIS",
+        "origin_terminal": "BCN (T1)",
+        "destination_terminal": "LIS (T2)",
+        "departure_time": "15:50",
+        "arrival_time": "16:55",
+        "flight_number": "VY8466"
+      }
+    ],
+    "passengers": 1
+  }
+}
+```
+- Bot navigates to Vueling booking retrieval page, fills code + email, clicks Go
+- Extracts all flight segments (outbound + return), cities, airports, terminals, times, flight numbers
+- Sends callback with verification result when `callback_url` provided
+- Uses separate queue worker (1 concurrent) independent from refund queue
+
 ## Recent Changes
+- 2026-02-17: Added booking verification bot (POST /verify) - navigates to Vueling booking retrieval page, fills code + email, extracts full flight details (cities, airports, terminals, times, flight numbers, passengers). Supports multiple flight segments (outbound + return). Uses correct page selectors (CONFIRMATIONNUMBER, CONTACTEMAIL, LinkButtonRetrieve, flightDetailsBox CSS classes).
 - 2026-02-17: Fixed deployment timeout - moved Playwright browser install from build to runtime startup via start.sh. Set PLAYWRIGHT_BROWSERS_PATH=/tmp/pw-browsers to store browsers outside workspace (not bundled). Reduced bundle from 440MB to 182MB. Added --single-process and --disable-setuid-sandbox launch flags.
 - 2026-02-16: Fixed Step 7 (YES button) - chatbot sends 6+ messages after reason selection before showing YES/NO buttons. Added extended wait in Step 6 to detect document prompt text before proceeding. Rewrote Step 7 with 30s polling loop, scrolling to bottom, multiple selectors (button, div[role=button], span, class*=button), scrollIntoView, force-click fallback. All SEND/SUBMIT buttons now raise exceptions on failure to trigger retries instead of silently continuing.
 - 2026-02-16: Fixed deployment timeout - lazy import of playwright (133MB) so app starts in <1s and passes health check. Cleaned cache/attached_assets to reduce bundle size.

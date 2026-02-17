@@ -6,8 +6,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
-from models.schemas import WebhookPayload, JobResult, JobStatus
-from services.queue import enqueue_job, job_store, start_workers
+from models.schemas import WebhookPayload, JobResult, JobStatus, VerifyPayload, VerifyResult
+from services.queue import enqueue_job, job_store, start_workers, enqueue_verify, verify_store
 
 
 worker_tasks = []
@@ -51,10 +51,10 @@ async def root():
         "status": "running",
         "endpoints": {
             "POST /webhook": "Submit a new refund request",
-            "GET /jobs": "List all jobs",
-            "GET /jobs/{job_id}": "Get job status and result",
-            "GET /jobs/{job_id}/screenshots": "List screenshots for a job",
-            "GET /jobs/{job_id}/screenshots/{filename}": "Download a screenshot",
+            "POST /verify": "Verify a booking exists",
+            "GET /jobs": "List all refund jobs",
+            "GET /jobs/{job_id}": "Get refund job status and result",
+            "GET /verify/{job_id}": "Get booking verification result",
         },
     }
 
@@ -124,6 +124,20 @@ async def get_screenshot(job_id: str, filename: str):
         raise HTTPException(status_code=404, detail="Screenshot not found")
 
     return FileResponse(filepath, media_type="image/png")
+
+
+@app.post("/verify", response_model=VerifyResult)
+async def verify_booking(payload: VerifyPayload):
+    job = await enqueue_verify(payload)
+    return job
+
+
+@app.get("/verify/{job_id}", response_model=VerifyResult)
+async def get_verify(job_id: str):
+    job = verify_store.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Verification job not found")
+    return job
 
 
 @app.get("/health")

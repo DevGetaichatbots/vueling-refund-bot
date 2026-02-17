@@ -3,7 +3,7 @@ modules = ["python-3.11"]
 
 [nix]
 channel = "stable-25_05"
-packages = ["alsa-lib", "at-spi2-atk", "cups", "dbus", "expat", "gitFull", "glib", "gtk3", "libdrm", "mesa", "nspr", "nss", "pango", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr", "xorg.libxcb"]
+packages = ["alsa-lib", "at-spi2-atk", "cups", "dbus", "expat", "gitFull", "glib", "gtk3", "libdrm", "mesa", "nspr", "nss", "pango", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr", "xorg.libxcb", "libxkbcommon"]
 
 [unitTest]
 language = "python3"
