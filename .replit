@@ -3,7 +3,7 @@ modules = ["python-3.11"]
 
 [nix]
 channel = "stable-25_05"
-packages = ["alsa-lib", "at-spi2-atk", "chromium", "cups", "dbus", "expat", "gitFull", "glib", "gtk3", "libdrm", "mesa", "nspr", "nss", "pango", "playwright-driver", "xorg.libX11", "xorg.libXScrnSaver", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXi", "xorg.libXrandr", "xorg.libXrender", "xorg.libXtst", "xorg.libxcb"]
+packages = ["alsa-lib", "at-spi2-atk", "cups", "dbus", "expat", "gitFull", "glib", "gtk3", "libdrm", "mesa", "nspr", "nss", "pango", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr", "xorg.libxcb"]
 
 [unitTest]
 language = "python3"
@@ -13,7 +13,7 @@ requiredFiles = [".replit", "replit.nix"]
 
 [deployment]
 deploymentTarget = "vm"
-build = ["bash", "-c", "echo 'ready'"]
+build = ["bash", "-c", "pip install -r requirements.txt && playwright install chromium && rm -rf .cache/ms-playwright/chromium-1208"]
 run = ["python", "main.py"]
 
 [agent]

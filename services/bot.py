@@ -328,16 +328,18 @@ class VuelingRefundBot:
         self.stealth = Stealth()
         self.pw_cm = self.stealth.use_async(async_playwright())
         self.playwright = await self.pw_cm.__aenter__()
-        chromium_path = shutil.which("chromium") or shutil.which("chromium-browser")
         launch_kwargs = dict(
             headless=self.headless,
             args=[
                 "--no-sandbox",
+                "--disable-setuid-sandbox",
                 "--disable-blink-features=AutomationControlled",
                 "--disable-dev-shm-usage",
                 "--disable-gpu",
+                "--single-process",
             ],
         )
+        chromium_path = shutil.which("chromium") or shutil.which("chromium-browser")
         if chromium_path:
             launch_kwargs["executable_path"] = chromium_path
         self.browser = await self.playwright.chromium.launch(**launch_kwargs)
