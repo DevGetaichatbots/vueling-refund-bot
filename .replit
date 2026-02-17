@@ -13,8 +13,8 @@ requiredFiles = [".replit", "replit.nix"]
 
 [deployment]
 deploymentTarget = "vm"
-build = ["bash", "-c", "pip install -r requirements.txt && playwright install chromium && rm -rf .cache/ms-playwright/chromium-1208"]
-run = ["python", "main.py"]
+build = ["pip", "install", "-r", "requirements.txt"]
+run = ["bash", "start.sh"]
 
 [agent]
 expertMode = true
@@ -40,9 +40,14 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python main.py"
+args = "bash start.sh"
 waitForPort = 5000
 
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[userenv]
+
+[userenv.shared]
+PLAYWRIGHT_BROWSERS_PATH = "/tmp/pw-browsers"

@@ -100,7 +100,17 @@ When `callback_url` is provided in the webhook, the bot POSTs progress updates a
 Steps in order: navigating_to_portal (5-15%) → entering_booking (20-25%) → selecting_refund_type (30%) → filling_passenger (35-50%) → submitting_claim (60%) → uploading_documents (70%) → submitting_claim (85%) → completed (100%)
 On error: `{"step": "error", "status": "error", "message": "...", "progress": <last_progress>}`
 
+## Deployment
+- Type: Reserved VM (0.5 vCPU / 2 GiB RAM)
+- Build: `pip install -r requirements.txt` (Python packages only, ~164MB)
+- Run: `bash start.sh` (installs Playwright browser on first startup, then starts server)
+- Browsers stored at `/tmp/pw-browsers/` via PLAYWRIGHT_BROWSERS_PATH env var (outside workspace, NOT bundled)
+- Total workspace bundle: ~182MB (vs 440MB+ with browsers bundled)
+- First deploy startup: ~30-60s extra to download headless shell (~111MB)
+- Subsequent restarts: instant (browser already in /tmp on VM)
+
 ## Recent Changes
+- 2026-02-17: Fixed deployment timeout - moved Playwright browser install from build to runtime startup via start.sh. Set PLAYWRIGHT_BROWSERS_PATH=/tmp/pw-browsers to store browsers outside workspace (not bundled). Reduced bundle from 440MB to 182MB. Added --single-process and --disable-setuid-sandbox launch flags.
 - 2026-02-16: Fixed Step 7 (YES button) - chatbot sends 6+ messages after reason selection before showing YES/NO buttons. Added extended wait in Step 6 to detect document prompt text before proceeding. Rewrote Step 7 with 30s polling loop, scrolling to bottom, multiple selectors (button, div[role=button], span, class*=button), scrollIntoView, force-click fallback. All SEND/SUBMIT buttons now raise exceptions on failure to trigger retries instead of silently continuing.
 - 2026-02-16: Fixed deployment timeout - lazy import of playwright (133MB) so app starts in <1s and passes health check. Cleaned cache/attached_assets to reduce bundle size.
 - 2026-02-16: Updated phone number handling - now accepts pre-parsed fields (phone_country_code, phone_prefix, phone_number) from frontend. Bot uses exact prefix for dropdown selection, no more parsing/guessing. Old format (phone_country) still supported for backward compatibility.
