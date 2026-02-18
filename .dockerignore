@@ -1,0 +1,16 @@
+.git
+.gitignore
+.cache
+.pythonlibs
+.upm
+__pycache__
+*.pyc
+screenshots/*
+attached_assets
+.replit
+replit.md
+replit.nix
+start.sh
+generated-icon.png
+.config
+uv.lock
