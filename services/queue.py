@@ -59,14 +59,17 @@ async def process_job(job_id: str):
         return
 
     await job_store.update(job_id, status=JobStatus.RUNNING, started_at=time.time())
-    print(f"\n[worker] Starting job {job_id} for booking {payload.booking_code}")
+    print(f"\n[refund-bot] === Starting refund job {job_id} ===")
+    print(f"[refund-bot] Booking: {payload.booking_code}, Email: {payload.booking_email}")
+    print(f"[refund-bot] Reason: {payload.reason.value}, Name: {payload.first_name} {payload.surname}")
+    print(f"[refund-bot] Phone: {payload.resolved_phone_prefix} {payload.resolved_phone_number}")
 
     downloaded_files = []
     try:
         if payload.documents:
-            print(f"[worker] Downloading {len(payload.documents)} document(s)...")
+            print(f"[refund-bot] Downloading {len(payload.documents)} document(s)...")
             downloaded_files = await download_files_for_job(job_id, payload.documents)
-            print(f"[worker] Downloaded {len(downloaded_files)} file(s)")
+            print(f"[refund-bot] Downloaded {len(downloaded_files)} file(s)")
 
         async def on_progress(completed_steps=None, errors=None, screenshots=None, case_number=None):
             updates = {}
@@ -123,10 +126,15 @@ async def process_job(job_id: str):
             screenshots=result.get("screenshots", []),
         )
 
-        print(f"[worker] Job {job_id} {final_status.value}")
+        if final_status == JobStatus.COMPLETED:
+            print(f"[refund-bot] === Job {job_id} COMPLETED === Case number: {result.get('case_number', 'N/A')}")
+        elif final_status == JobStatus.REJECTED:
+            print(f"[refund-bot] === Job {job_id} REJECTED === Reason: {result.get('rejection_reason', 'N/A')}")
+        else:
+            print(f"[refund-bot] === Job {job_id} FAILED ===")
 
     except Exception as e:
-        print(f"[worker] Job {job_id} crashed: {e}")
+        print(f"[refund-bot] === Job {job_id} CRASHED === {e}")
         traceback.print_exc()
         await job_store.update(
             job_id,

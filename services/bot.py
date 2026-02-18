@@ -333,7 +333,7 @@ class VuelingRefundBot:
 
     # ── Step 1: Launch browser ──
     async def step_launch_browser(self):
-        print(f"[Step 1] Launching browser (job: {self.job_id})...")
+        print(f"[refund-bot] Launching browser (job: {self.job_id})...")
         self.stealth = Stealth()
         self.pw_cm = self.stealth.use_async(async_playwright())
         self.playwright = await self.pw_cm.__aenter__()
@@ -357,11 +357,11 @@ class VuelingRefundBot:
             locale="en-US",
         )
         self.page = await context.new_page()
-        print("  Browser launched successfully")
+        print("[refund-bot] Browser launched successfully")
 
     # ── Step 2: Navigate to refund page ──
     async def step_navigate(self):
-        print("[Step 2] Navigating to Vueling refund page...")
+        print("[refund-bot] Navigating to Vueling refund page...")
         await self.page.goto(config.VUELING_REFUND_URL, wait_until="domcontentloaded", timeout=config.PAGE_LOAD_TIMEOUT)
         await self._random_delay(2, 4)
 
@@ -389,7 +389,7 @@ class VuelingRefundBot:
 
     # ── Step 3: Wait for chatbot ──
     async def step_wait_chatbot(self):
-        print("[Step 3] Waiting for chatbot to load...")
+        print("[refund-bot] Waiting for chatbot to load...")
         chatbot_selectors = [
             "iframe[src*='chat']", "iframe[src*='bot']",
             "[class*='chat']", "[class*='webchat']",
@@ -414,7 +414,7 @@ class VuelingRefundBot:
 
     # ── Step 4: Select CODE AND EMAIL ──
     async def step_select_code_email(self):
-        print("[Step 4] Selecting 'CODE AND EMAIL'...")
+        print("[refund-bot] Selecting 'CODE AND EMAIL'...")
         ctx = await self._find_chatbot_frame()
 
         clicked = False
@@ -438,7 +438,8 @@ class VuelingRefundBot:
 
     # ── Step 5: Fill booking code + email → SEND ──
     async def step_fill_booking(self):
-        print("[Step 5] Filling booking details...")
+        print(f"[refund-bot] Filling booking code: {self.booking_code}")
+        print(f"[refund-bot] Filling email: {self.email}")
         ctx = await self._find_chatbot_frame()
 
         filled = False
@@ -519,7 +520,7 @@ class VuelingRefundBot:
 
     # ── Step 6: Select cancellation reason ──
     async def step_select_reason(self):
-        print(f"[Step 6] Selecting reason: {self.reason}...")
+        print(f"[refund-bot] Selecting reason: {self.reason}...")
         ctx = await self._find_chatbot_frame()
         await self._random_delay()
 
@@ -599,7 +600,7 @@ class VuelingRefundBot:
 
     # ── Step 7: "Got all your documents to hand?" → YES ──
     async def step_confirm_documents(self):
-        print("[Step 7] Confirming documents ready (YES)...")
+        print("[refund-bot] Confirming documents ready (YES)...")
         ctx = await self._find_chatbot_frame()
         await self._random_delay()
 
@@ -687,7 +688,7 @@ class VuelingRefundBot:
 
     # ── Step 8: Enter first name + surname → SEND ──
     async def step_fill_name(self):
-        print(f"[Step 8] Filling name: {self.first_name} {self.surname}...")
+        print(f"[refund-bot] Filling name: {self.first_name} {self.surname}...")
         ctx = await self._find_chatbot_frame()
         await self._random_delay()
 
@@ -840,7 +841,7 @@ class VuelingRefundBot:
 
     # ── Step 9: Enter contact email (type in chat) ──
     async def step_contact_email(self):
-        print(f"[Step 9] Entering contact email: {self.contact_email}...")
+        print(f"[refund-bot] Entering contact email: {self.contact_email}...")
         ctx = await self._find_chatbot_frame()
         await self._random_delay(0.5, 1)
 
@@ -892,7 +893,7 @@ class VuelingRefundBot:
 
     # ── Step 10: Enter phone country + number → SEND ──
     async def step_fill_phone(self):
-        print(f"[Step 10] Filling phone: {self.phone_prefix} {self.phone_number}...")
+        print(f"[refund-bot] Filling phone: {self.phone_prefix} {self.phone_number}...")
         ctx = await self._find_chatbot_frame()
         await self._random_delay()
 
@@ -1038,7 +1039,7 @@ class VuelingRefundBot:
 
     # ── Step 11: Optional comment → SUBMIT QUERY ──
     async def step_submit_comment(self):
-        print("[Step 11] Submitting comment...")
+        print(f"[refund-bot] Submitting comment...")
         ctx = await self._find_chatbot_frame()
         await self._random_delay(0.3, 0.5)
 
@@ -1162,7 +1163,7 @@ class VuelingRefundBot:
                 return False
 
     async def step_upload_documents(self):
-        print(f"[Step 12] Uploading {len(self.document_paths)} document(s)...")
+        print(f"[refund-bot] Uploading {len(self.document_paths)} document(s)...")
         ctx = await self._find_chatbot_frame()
         await self._random_delay(0.3, 0.5)
 
@@ -1241,7 +1242,7 @@ class VuelingRefundBot:
 
     # ── Step 13: Extract case number from confirmation ──
     async def step_get_confirmation(self):
-        print("[Step 13] Getting confirmation and case number...")
+        print("[refund-bot] Getting confirmation and case number...")
         ctx = await self._find_chatbot_frame()
         await self._random_delay(2, 4)
         await self._wait_for_new_content(ctx)
@@ -1273,7 +1274,7 @@ class VuelingRefundBot:
 
     # ── Step 14: Decline another refund → NO ──
     async def step_decline_another(self):
-        print("[Step 14] Declining another refund (NO)...")
+        print("[refund-bot] Declining another refund (NO)...")
         ctx = await self._find_chatbot_frame()
         await self._random_delay()
 

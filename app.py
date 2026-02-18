@@ -60,7 +60,13 @@ async def root():
 
 @app.post("/webhook", response_model=JobResult)
 async def webhook_receive(payload: WebhookPayload):
+    print(f"[webhook] Received refund request: booking={payload.booking_code}, email={payload.booking_email}, reason={payload.reason.value}, name={payload.first_name} {payload.surname}")
+    if payload.documents:
+        print(f"[webhook] Documents: {len(payload.documents)} file(s)")
+    if payload.callback_url:
+        print(f"[webhook] Callback URL: {payload.callback_url}")
     job = await enqueue_job(payload)
+    print(f"[webhook] Job {job.job_id} created for {payload.booking_code}")
     return job
 
 
@@ -127,6 +133,9 @@ async def get_screenshot(job_id: str, filename: str):
 
 @app.post("/verify")
 async def verify_booking(payload: VerifyPayload):
+    print(f"[verify] Received verify request: booking={payload.booking_code}, email={payload.booking_email}")
+    if payload.callback_url:
+        print(f"[verify] Callback URL: {payload.callback_url}")
     from utils.browser_env import setup_browser_env
     setup_browser_env()
     from services.verify_bot import BookingVerifyBot
@@ -140,18 +149,22 @@ async def verify_booking(payload: VerifyPayload):
     result = await bot.run()
 
     if result["verified"]:
+        flights = result["booking_details"].get("flights", [])
+        print(f"[verify] Booking {payload.booking_code} VERIFIED - {len(flights)} flight(s) found")
         return JSONResponse(status_code=200, content={
             "verified": True,
             "booking_code": payload.booking_code,
             "booking_details": result["booking_details"],
         })
     elif result.get("error") and not result.get("success"):
+        print(f"[verify] Booking {payload.booking_code} ERROR - {result['error']}")
         return JSONResponse(status_code=500, content={
             "verified": False,
             "booking_code": payload.booking_code,
             "error": result["error"],
         })
     else:
+        print(f"[verify] Booking {payload.booking_code} NOT FOUND")
         return JSONResponse(status_code=200, content={
             "verified": False,
             "booking_code": payload.booking_code,
