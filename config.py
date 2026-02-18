@@ -17,7 +17,7 @@ STEP_TIMEOUT = 45000
 PAGE_LOAD_TIMEOUT = 60000
 
 API_HOST = "0.0.0.0"
-API_PORT = 5000
+API_PORT = int(os.environ.get("PORT", 5000))
 
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
